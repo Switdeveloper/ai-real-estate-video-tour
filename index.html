@@ -293,13 +293,13 @@
       </div>
     </div>
 
-    <!-- STEP 2: Analyze Property -->
+    <!-- STEP 2: Analyze & Categorize -->
     <div id="step2" class="step-panel">
       <div class="reveal bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
           <div>
             <h2 class="text-lg font-bold text-brand-dark serif">AI Room Analysis</h2>
-            <p class="text-sm text-gray-500">AI will describe each room in detail for the video script.</p>
+            <p class="text-sm text-gray-500">AI will categorize each photo. Review the categories and fix any mislabeling before proceeding.</p>
           </div>
           <button id="analyzeBtn" onclick="startAnalysis()" class="bg-brand-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm">
             <i class="fas fa-magic"></i> Analyze All Photos
@@ -314,40 +314,56 @@
             <div id="analysisProgressBar" class="bg-brand-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
           </div>
         </div>
-        <div id="analysisResults" class="hidden space-y-4 mt-4"></div>
+        <div id="analysisResults" class="hidden space-y-3 mt-4"></div>
+        <div id="categoryOverview" class="hidden mt-6 pt-4 border-t border-gray-200">
+          <h3 class="text-sm font-bold text-gray-700 mb-3">Category Summary</h3>
+          <div id="categorySummaryList" class="flex flex-wrap gap-2 mb-4"></div>
+          <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800 flex items-center gap-3">
+            <i class="fas fa-check-circle text-green-500 text-lg"></i>
+            <span>All photos categorized. You can reassign any photo above before proceeding.</span>
+          </div>
+        </div>
         <div class="flex justify-between mt-6">
           <button onclick="goToStep(1)" class="text-sm text-gray-500 border border-gray-300 rounded-lg px-4 py-2 hover:bg-gray-50 transition">
             <i class="fas fa-arrow-left mr-1"></i> Back
           </button>
-          <button id="step2Next" onclick="goToStep(3)" class="bg-brand-primary text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-            Next: Generate Script <i class="fas fa-arrow-right text-xs"></i>
+          <button id="confirmCategories" onclick="confirmAndGoToStep3()" class="bg-brand-primary text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm hidden">
+            <i class="fas fa-check"></i> Confirm & Continue
           </button>
         </div>
       </div>
     </div>
 
-    <!-- STEP 3: Video Clips by Category -->
+    <!-- STEP 3: Arrange Categories & Generate Clips -->
     <div id="step3" class="step-panel">
       <div class="reveal bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h2 class="text-lg font-bold text-brand-dark serif">Video Clips by Category</h2>
-            <p class="text-sm text-gray-500">Each photo becomes a clip with AI-generated voiceover, visual direction, and music. Edit any clip below.</p>
+            <h2 class="text-lg font-bold text-brand-dark serif">Arrange Clip Order</h2>
+            <p class="text-sm text-gray-500">Drag categories to set your preferred clip sequence, then generate the script.</p>
           </div>
-          <button id="generateScriptBtn" onclick="generateScript()" class="bg-brand-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm">
+          <button id="generateScriptBtn" onclick="generateClipsFromOrder()" class="bg-brand-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
             <i class="fas fa-feather-alt"></i> Generate Clips
           </button>
         </div>
-        <div id="scriptLoading" class="hidden flex items-center gap-3 text-sm text-gray-600 mb-4 py-8 justify-center">
+        <div id="orderLoading" class="hidden flex items-center gap-3 text-sm text-gray-600 mb-4 py-8 justify-center">
           <i class="fas fa-spinner fa-spin text-brand-primary"></i>
-          <span>Generating clip scripts...</span>
+          <span>Generating clip scripts in your chosen order...</span>
         </div>
-        <div id="clipScripts" class="space-y-3">
+
+        <!-- Draggable category groups -->
+        <div id="categoryOrderList" class="space-y-3">
           <div class="text-center py-12 text-gray-400">
-            <i class="fas fa-film text-3xl mb-3"></i>
-            <p class="text-sm">Click "Generate Clips" to create AI-powered voiceover and direction for each photo.</p>
+            <i class="fas fa-images text-3xl mb-3"></i>
+            <p class="text-sm">Complete analysis in step 2 first.</p>
           </div>
         </div>
+
+        <div id="clipScriptsContainer" class="hidden mt-6 pt-4 border-t border-gray-200">
+          <h3 class="text-sm font-bold text-gray-700 mb-3">Generated Clip Scripts</h3>
+          <div id="clipScripts" class="space-y-3"></div>
+        </div>
+
         <div class="flex justify-between mt-6">
           <button onclick="goToStep(2)" class="text-sm text-gray-500 border border-gray-300 rounded-lg px-4 py-2 hover:bg-gray-50 transition">
             <i class="fas fa-arrow-left mr-1"></i> Back
@@ -490,6 +506,7 @@
     let currentStep = 1;
     let isAnalyzing = false;
     let isGeneratingScript = false;
+    let generatedClips = [];
 
     // ── DOM refs ──
     const $ = id => document.getElementById(id);
@@ -670,12 +687,17 @@
     function clearPhotos() {
       uploadedPhotos = [];
       analysisResults = [];
+      generatedClips = [];
+      window._categoryGroups = {};
       renderPhotos();
       $('analysisResults').classList.add('hidden');
       $('analysisResults').innerHTML = '';
-      $('step2Next').disabled = true;
-      generatedClips = [];
-      $('clipScripts').innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-film text-3xl mb-3"></i><p class="text-sm">Click "Generate Clips" to create AI-powered voiceover and direction for each photo.</p></div>';
+      $('categoryOverview').classList.add('hidden');
+      $('confirmCategories').classList.add('hidden');
+      $('clipScripts').innerHTML = '';
+      $('clipScriptsContainer').classList.add('hidden');
+      $('categoryOrderList').innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-images text-3xl mb-3"></i><p class="text-sm">Complete analysis in step 2 first.</p></div>';
+      $('generateScriptBtn').disabled = true;
       $('step3Next').disabled = true;
     }
 
@@ -698,8 +720,11 @@
       $('analysisProgress').classList.remove('hidden');
       $('analysisResults').classList.remove('hidden');
       $('analysisResults').innerHTML = '';
-      $('step2Next').disabled = true;
+      $('categoryOverview').classList.add('hidden');
+      $('confirmCategories').classList.add('hidden');
       analysisResults = [];
+
+      const ALL_CATEGORIES = ['Exterior', 'Living Room', 'Kitchen', 'Dining Room', 'Bedroom', 'Bathroom', 'Office', 'Hallway', 'Staircase', 'Basement', 'Garage', 'Backyard', 'Pool', 'Balcony', 'Agent Photo', 'Detail Shot', 'Other'];
 
       const model = getModelValue('vision');
       const total = uploadedPhotos.length;
@@ -709,25 +734,30 @@
         $('analysisStatus').textContent = `Analyzing ${i + 1} of ${total}: ${photo.name}`;
         $('analysisProgressBar').style.width = ((i / total) * 100) + '%';
 
-        // Add placeholder card
-        const card = document.createElement('div');
-        card.id = 'analysis-' + i;
-        card.className = 'analysis-card';
-        card.innerHTML = `
+        const placeholder = document.createElement('div');
+        placeholder.id = 'analysis-ph-' + i;
+        placeholder.className = 'analysis-card';
+        placeholder.innerHTML = `
           <div class="flex flex-col sm:flex-row">
             <div class="sm:w-40 flex-shrink-0">
-              <img src="${photo.dataUrl}" class="thumb sm:h-full sm:w-40" alt="" />
+              <img src="${photo.dataUrl}" class="thumb sm:h-full sm:w-40 object-cover" />
             </div>
             <div class="p-4 flex-1">
-              <div class="flex items-center gap-2 mb-1">
+              <div class="flex items-center gap-2 mb-2">
                 <span class="text-xs font-semibold text-gray-500 uppercase">Photo ${i + 1}</span>
-                <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full category-badge-${i}">detecting...</span>
+                <span class="text-[10px] text-gray-400 italic analysis-ph-status-${i}">Analyzing...</span>
               </div>
-              <div class="desc"><span class="text-gray-400 italic">Analyzing...</span></div>
+              <div class="mb-2">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Category</label>
+                <select class="analysis-cat-select w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" data-i="${i}">
+                  ${ALL_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+                </select>
+              </div>
+              <div class="text-xs text-gray-500 analysis-ph-tag-${i}">&mdash;</div>
             </div>
           </div>
         `;
-        $('analysisResults').appendChild(card);
+        $('analysisResults').appendChild(placeholder);
 
         try {
           const res = await fetch(API_BASE + '/chat/completions', {
@@ -757,7 +787,6 @@
             try { const j = JSON.parse(err); raw = 'Error: ' + (j.error?.message || j.error || err); } catch(e) { raw = 'Error: ' + err; }
           }
 
-          // Parse "CATEGORY: tag" format
           const colonIdx = raw.indexOf(':');
           let category = 'Other';
           let tag = raw;
@@ -765,37 +794,33 @@
             category = raw.substring(0, colonIdx).trim();
             tag = raw.substring(colonIdx + 1).trim();
           }
+          if (!ALL_CATEGORIES.includes(category)) category = 'Other';
 
           analysisResults.push({ photoIndex: i, category, tag, raw });
-          const badge = card.querySelector('.category-badge-' + i);
-          if (badge) {
-            badge.textContent = category;
-            const colors = {
-              'Exterior': 'bg-green-100 text-green-700',
-              'Living Room': 'bg-blue-100 text-blue-700',
-              'Kitchen': 'bg-orange-100 text-orange-700',
-              'Dining Room': 'bg-amber-100 text-amber-700',
-              'Bedroom': 'bg-purple-100 text-purple-700',
-              'Bathroom': 'bg-cyan-100 text-cyan-700',
-              'Office': 'bg-indigo-100 text-indigo-700',
-              'Agent Photo': 'bg-pink-100 text-pink-700',
-              'Detail Shot': 'bg-gray-200 text-gray-700',
-              'Backyard': 'bg-emerald-100 text-emerald-700',
-              'Pool': 'bg-sky-100 text-sky-700',
-              'Balcony': 'bg-teal-100 text-teal-700',
-              'Garage': 'bg-stone-100 text-stone-700',
-              'Basement': 'bg-neutral-100 text-neutral-700',
-              'Hallway': 'bg-violet-100 text-violet-700',
-              'Staircase': 'bg-fuchsia-100 text-fuchsia-700',
-            };
-            badge.className = 'text-[10px] px-2 py-0.5 rounded-full ' + (colors[category] || 'bg-gray-100 text-gray-600');
+
+          const select = $('analysisResults').querySelector('.analysis-cat-select[data-i="' + i + '"]');
+          if (select) {
+            select.value = category;
+            select.addEventListener('change', function() {
+              const idx = parseInt(this.dataset.i);
+              if (analysisResults[idx]) {
+                analysisResults[idx].category = this.value;
+                updateCategoryOverview();
+              }
+            });
           }
-          const descEl = card.querySelector('.desc');
-          descEl.innerHTML = tag;
+          const tagEl = $('analysisResults').querySelector('.analysis-ph-tag-' + i);
+          if (tagEl) tagEl.textContent = tag;
+          const statusEl = $('analysisResults').querySelector('.analysis-ph-status-' + i);
+          if (statusEl) {
+            const colors = {'Exterior':'text-green-600','Living Room':'text-blue-600','Kitchen':'text-orange-600','Bedroom':'text-purple-600','Bathroom':'text-cyan-600','Agent Photo':'text-pink-600'};
+            statusEl.className = 'text-xs font-medium ' + (colors[category] || 'text-gray-600');
+            statusEl.textContent = category;
+          }
         } catch (err) {
-          analysisResults.push({ photoIndex: i, category: 'Error', tag: err.message, raw: '' });
-          const descEl = card.querySelector('.desc');
-          descEl.innerHTML = '<span class="text-red-500">Network error: ' + err.message + '</span>';
+          analysisResults.push({ photoIndex: i, category: 'Other', tag: err.message, raw: '' });
+          const tagEl = $('analysisResults').querySelector('.analysis-ph-tag-' + i);
+          if (tagEl) tagEl.textContent = 'Network error';
         }
       }
 
@@ -803,15 +828,148 @@
       $('analysisStatus').textContent = 'Analysis complete for ' + total + ' photos.';
       $('analyzeBtn').disabled = false;
       $('analyzeBtn').innerHTML = '<i class="fas fa-magic"></i> Re-analyze';
-      $('step2Next').disabled = analysisResults.length < 2;
       isAnalyzing = false;
+      updateCategoryOverview();
+      $('categoryOverview').classList.remove('hidden');
+      $('confirmCategories').classList.remove('hidden');
     }
 
-    // ── Clips data ──
-    let generatedClips = [];
+    function updateCategoryOverview() {
+      const counts = {};
+      analysisResults.forEach(r => {
+        const c = r.category || 'Other';
+        counts[c] = (counts[c] || 0) + 1;
+      });
+      const colors = {
+        'Exterior':'bg-green-100 text-green-700','Living Room':'bg-blue-100 text-blue-700',
+        'Kitchen':'bg-orange-100 text-orange-700','Dining Room':'bg-amber-100 text-amber-700',
+        'Bedroom':'bg-purple-100 text-purple-700','Bathroom':'bg-cyan-100 text-cyan-700',
+        'Office':'bg-indigo-100 text-indigo-700','Agent Photo':'bg-pink-100 text-pink-700',
+        'Detail Shot':'bg-gray-200 text-gray-700','Backyard':'bg-emerald-100 text-emerald-700',
+        'Pool':'bg-sky-100 text-sky-700','Balcony':'bg-teal-100 text-teal-700',
+        'Garage':'bg-stone-100 text-stone-700','Basement':'bg-neutral-100 text-neutral-700',
+        'Hallway':'bg-violet-100 text-violet-700','Staircase':'bg-fuchsia-100 text-fuchsia-700',
+        'Other':'bg-gray-100 text-gray-600'
+      };
+      const list = $('categorySummaryList');
+      list.innerHTML = Object.entries(counts).map(([cat, count]) =>
+        `<span class="text-xs px-2.5 py-1 rounded-full font-medium ${colors[cat] || 'bg-gray-100 text-gray-600'}">${cat} (${count})</span>`
+      ).join('');
+    }
 
-    // ── Step 3: Generate Clip Scripts ──
-    async function generateScript() {
+    function confirmAndGoToStep3() {
+      if (analysisResults.length < 2) {
+        showToast('Please analyze photos first.');
+        return;
+      }
+      // Build category groups from the (possibly reassigned) categories
+      const groups = {};
+      analysisResults.forEach(r => {
+        const c = r.category || 'Other';
+        if (!groups[c]) groups[c] = [];
+        groups[c].push(r.photoIndex);
+      });
+      window._categoryGroups = groups;
+      goToStep(3);
+      renderCategoryOrder();
+    }
+
+    // ── Step 3: Category Order & Clip Generation ──
+    function renderCategoryOrder() {
+      const container = $('categoryOrderList');
+      const groups = window._categoryGroups || {};
+      const cats = Object.keys(groups);
+
+      if (!cats.length) {
+        container.innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-images text-3xl mb-3"></i><p class="text-sm">No categories found. Complete analysis first.</p></div>';
+        $('generateScriptBtn').disabled = true;
+        return;
+      }
+
+      $('generateScriptBtn').disabled = false;
+
+      const catColors = {
+        'Exterior':'border-green-300 bg-green-50','Living Room':'border-blue-300 bg-blue-50',
+        'Kitchen':'border-orange-300 bg-orange-50','Dining Room':'border-amber-300 bg-amber-50',
+        'Bedroom':'border-purple-300 bg-purple-50','Bathroom':'border-cyan-300 bg-cyan-50',
+        'Office':'border-indigo-300 bg-indigo-50','Agent Photo':'border-pink-300 bg-pink-50',
+        'Detail Shot':'border-gray-300 bg-gray-50','Backyard':'border-emerald-300 bg-emerald-50',
+        'Pool':'border-sky-300 bg-sky-50','Balcony':'border-teal-300 bg-teal-50',
+        'Garage':'border-stone-300 bg-stone-50','Basement':'border-neutral-300 bg-neutral-50',
+        'Hallway':'border-violet-300 bg-violet-50','Staircase':'border-fuchsia-300 bg-fuchsia-50',
+        'Other':'border-gray-300 bg-gray-50'
+      };
+
+      container.innerHTML = `
+        <div class="text-xs text-gray-500 mb-3 flex items-center gap-2">
+          <i class="fas fa-arrows-alt text-brand-primary"></i>
+          <span>Drag to reorder categories. This determines the final video sequence.</span>
+        </div>
+        <div id="sortableCategories" class="space-y-2">
+          ${cats.map((cat, ci) => {
+            const photos = groups[cat].map(pi => uploadedPhotos[pi]).filter(Boolean);
+            const borderColor = catColors[cat] || 'border-gray-300 bg-gray-50';
+            return `
+              <div class="category-group border-2 rounded-xl ${borderColor} overflow-hidden cursor-grab active:cursor-grabbing" draggable="true" data-category="${cat}">
+                <div class="flex items-center gap-3 px-4 py-3">
+                  <div class="drag-handle text-gray-400 text-sm"><i class="fas fa-grip-vertical"></i></div>
+                  <span class="text-xs font-bold uppercase text-gray-600 min-w-[100px]">${cat}</span>
+                  <span class="text-[10px] text-gray-400">${photos.length} photo${photos.length > 1 ? 's' : ''}</span>
+                  <div class="flex-1"></div>
+                  <span class="text-[10px] text-gray-400 order-num">#${ci + 1}</span>
+                </div>
+                <div class="flex gap-1.5 px-4 pb-3 overflow-x-auto">
+                  ${photos.map(p => `<img src="${p.dataUrl}" class="w-14 h-10 rounded object-cover flex-shrink-0" />`).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      // Drag & drop setup
+      const sortable = $('sortableCategories');
+      let dragEl = null;
+
+      sortable.querySelectorAll('.category-group').forEach(el => {
+        el.addEventListener('dragstart', function(e) {
+          dragEl = this;
+          this.classList.add('opacity-50');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        el.addEventListener('dragend', function() {
+          this.classList.remove('opacity-50');
+          dragEl = null;
+          updateOrderNumbers();
+        });
+        el.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          if (this !== dragEl) {
+            const all = [...sortable.querySelectorAll('.category-group')];
+            const idx = all.indexOf(this);
+            if (dragEl) {
+              const fromIdx = all.indexOf(dragEl);
+              if (fromIdx < idx) {
+                this.parentNode.insertBefore(dragEl, this.nextSibling);
+              } else {
+                this.parentNode.insertBefore(dragEl, this);
+              }
+            }
+          }
+        });
+      });
+    }
+
+    function updateOrderNumbers() {
+      const groups = $('sortableCategories');
+      if (!groups) return;
+      groups.querySelectorAll('.category-group').forEach((el, i) => {
+        const num = el.querySelector('.order-num');
+        if (num) num.textContent = '#' + (i + 1);
+      });
+    }
+
+    async function generateClipsFromOrder() {
       const key = getApiKey();
       if (!key) {
         showToast('Please set your API key in Settings first.');
@@ -823,16 +981,31 @@
         return;
       }
 
+      const sortable = $('sortableCategories');
+      if (!sortable) return;
+
+      // Build ordered list of photo indices from the user's drag order
+      const catEls = sortable.querySelectorAll('.category-group');
+      const orderedPhotoIndices = [];
+      catEls.forEach(el => {
+        const cat = el.dataset.category;
+        const group = window._categoryGroups[cat] || [];
+        group.forEach(pi => orderedPhotoIndices.push(pi));
+      });
+
       isGeneratingScript = true;
       $('generateScriptBtn').disabled = true;
       $('generateScriptBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-      $('scriptLoading').classList.remove('hidden');
+      $('orderLoading').classList.remove('hidden');
+      $('clipScriptsContainer').classList.add('hidden');
       $('step3Next').disabled = true;
 
       const model = getModelValue('script');
-      const roomDescs = analysisResults.map((r, i) =>
-        `Photo ${i + 1} [${r.category || 'Other'}]: ${r.tag || r.raw || 'No description'}`
-      ).join('\n\n');
+      // Build room descriptions in the user's order
+      const orderedDescs = orderedPhotoIndices.map(pi => {
+        const r = analysisResults.find(a => a.photoIndex === pi);
+        return `Photo [${r ? r.category : 'Other'}]: ${r ? (r.tag || r.raw || '') : ''}`;
+      }).join('\n\n');
       const propDetails = $('propertyDetails').value.trim();
       const vidPrompt = $('videoPrompt').value.trim();
 
@@ -840,23 +1013,29 @@
       if (propDetails) extras += `\nProperty Information:\n${propDetails}\n`;
       if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
 
+      // Build category sequence string for the prompt
+      const catSequence = catEls.map((el, i) => `Clip ${i + 1}: ${el.dataset.category}`).join('\n');
+
       const prompt = `You are a professional real estate video scriptwriter. Create a cinematic video tour script based on these room descriptions.${extras}
 
-There are ${analysisResults.length} photos. Each photo will be a 9-10 second video clip.
-Return a JSON array of clip objects. No markdown, no code fences, pure JSON only.
+VIDEO CLIP SEQUENCE (IN THIS EXACT ORDER):
+${catSequence}
 
-For each photo, output an object with these fields:
+There are ${orderedPhotoIndices.length} photos. Each photo will be a 9-10 second video clip.
+Return a JSON array of ${orderedPhotoIndices.length} clip objects. No markdown, no code fences, pure JSON only.
+
+For each clip, output an object with exactly these fields:
 {
-  "category": "the category from the photo",
+  "category": "the category name from the sequence above",
   "voiceover": "a 1-2 sentence voiceover line for this clip in quotes",
-  "visual": "camera direction / visual style for the clip (e.g. slow pan left, smooth zoom in)",
+  "visual": "camera direction / visual style (e.g. slow pan left, smooth zoom in)",
   "audio": "music/sound cue (e.g. warm piano fades in, upbeat modern beat)"
 }
 
-Photos:
-${roomDescs}
+Photos in sequence order:
+${orderedDescs}
 
-Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
+Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
 
       try {
         const res = await fetch(API_BASE + '/chat/completions', {
@@ -880,13 +1059,11 @@ Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
         if (res.ok) {
           const data = await res.json();
           let raw = data.choices?.[0]?.message?.content || '[]';
-          // Strip code fences if present
           raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
           let parsed;
           try {
             parsed = JSON.parse(raw);
           } catch(e) {
-            // Try extracting array with regex
             const arrMatch = raw.match(/\[[\s\S]*\]/);
             if (arrMatch) {
               try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
@@ -897,9 +1074,9 @@ Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
           if (Array.isArray(parsed) && parsed.length > 0) {
             generatedClips = parsed.map((c, i) => ({
               ...c,
-              photoIndex: i,
-              category: c.category || analysisResults[i]?.category || 'Other',
-              voiceover: c.voiceover || 'No voiceover generated.',
+              photoIndex: orderedPhotoIndices[i] !== undefined ? orderedPhotoIndices[i] : i,
+              category: c.category || 'Other',
+              voiceover: c.voiceover || 'Welcome to this beautiful property.',
               visual: c.visual || 'Static shot',
               audio: c.audio || 'Background music'
             }));
@@ -907,14 +1084,17 @@ Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
             $('step3Next').disabled = false;
             showToast('Generated ' + generatedClips.length + ' clips!');
           } else {
-            // Fallback: create basic clips from analysis
-            generatedClips = analysisResults.map((r, i) => ({
-              photoIndex: i,
-              category: r.category || 'Other',
-              voiceover: 'Welcome to this beautiful ' + (r.tag || 'property') + '.',
-              visual: 'Smooth pan across the room',
-              audio: 'Soft ambient music'
-            }));
+            // Fallback
+            generatedClips = orderedPhotoIndices.map((pi, i) => {
+              const r = analysisResults.find(a => a.photoIndex === pi);
+              return {
+                photoIndex: pi,
+                category: r ? r.category : 'Other',
+                voiceover: 'Welcome to this beautiful ' + (r ? (r.tag || 'property') : 'property') + '.',
+                visual: 'Smooth pan across the room',
+                audio: 'Soft ambient music'
+              };
+            });
             renderClipScripts();
             $('step3Next').disabled = false;
             showToast('Used fallback clips (AI did not return valid JSON)');
@@ -929,20 +1109,18 @@ Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
 
       isGeneratingScript = false;
       $('generateScriptBtn').disabled = false;
-      $('generateScriptBtn').innerHTML = '<i class="fas fa-feather-alt"></i> Regenerate Clips';
-      $('scriptLoading').classList.add('hidden');
+      $('generateScriptBtn').innerHTML = '<i class="fas fa-feather-alt"></i> Re-generate Clips';
+      $('orderLoading').classList.add('hidden');
     }
 
     function renderClipScripts() {
       const container = $('clipScripts');
-      if (!generatedClips.length) {
-        container.innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-film text-3xl mb-3"></i><p class="text-sm">No clips generated yet.</p></div>';
-        return;
-      }
+      if (!generatedClips.length) return;
+
+      $('clipScriptsContainer').classList.remove('hidden');
+
       container.innerHTML = generatedClips.map((clip, i) => {
         const photo = uploadedPhotos[clip.photoIndex];
-        const analysis = analysisResults[clip.photoIndex];
-        const imgSrc = photo ? photo.dataUrl : '';
         const catColors = {
           'Exterior': 'bg-green-100 text-green-700', 'Living Room': 'bg-blue-100 text-blue-700',
           'Kitchen': 'bg-orange-100 text-orange-700', 'Dining Room': 'bg-amber-100 text-amber-700',
@@ -958,7 +1136,7 @@ Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
           <div class="clip-card" data-clip-index="${i}">
             <div class="flex flex-col sm:flex-row">
               <div class="sm:w-32 flex-shrink-0">
-                <img src="${imgSrc}" class="w-full h-20 sm:h-full sm:w-32 object-cover" />
+                <img src="${photo ? photo.dataUrl : ''}" class="w-full h-20 sm:h-full sm:w-32 object-cover" />
               </div>
               <div class="p-3 sm:p-4 flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-2">
