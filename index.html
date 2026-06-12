@@ -900,73 +900,164 @@
         'Other':'border-gray-300 bg-gray-50'
       };
 
+      const ALL_CATEGORIES = ['Exterior', 'Living Room', 'Kitchen', 'Dining Room', 'Bedroom', 'Bathroom', 'Office', 'Hallway', 'Staircase', 'Basement', 'Garage', 'Backyard', 'Pool', 'Balcony', 'Agent Photo', 'Detail Shot', 'Other'];
+
       container.innerHTML = `
         <div class="text-xs text-gray-500 mb-3 flex items-center gap-2">
-          <i class="fas fa-arrows-alt text-brand-primary"></i>
-          <span>Drag to reorder categories. This determines the final video sequence.</span>
+          <i class="fas fa-arrow-up text-brand-primary"></i>
+          <span>Use arrows to reorder scenes. Click a photo below to reassign it to a different scene.</span>
         </div>
-        <div id="sortableCategories" class="space-y-2">
+
+        <!-- Scenes -->
+        <div id="sortableCategories" class="space-y-2 mb-6">
           ${cats.map((cat, ci) => {
             const photos = groups[cat].map(pi => uploadedPhotos[pi]).filter(Boolean);
             const borderColor = catColors[cat] || 'border-gray-300 bg-gray-50';
             return `
-              <div class="category-group border-2 rounded-xl ${borderColor} overflow-hidden cursor-grab active:cursor-grabbing" draggable="true" data-category="${cat}">
-                <div class="flex items-center gap-3 px-4 py-3">
-                  <div class="drag-handle text-gray-400 text-sm"><i class="fas fa-grip-vertical"></i></div>
+              <div class="category-group border-2 rounded-xl ${borderColor} overflow-hidden" data-category="${cat}">
+                <div class="flex items-center gap-2 px-4 py-2.5">
+                  <div class="flex flex-col gap-0.5">
+                    <button class="scene-move-up text-gray-400 hover:text-brand-dark text-xs leading-none ${ci === 0 ? 'opacity-20 pointer-events-none' : ''}" data-ci="${ci}" title="Move up"><i class="fas fa-chevron-up"></i></button>
+                    <button class="scene-move-down text-gray-400 hover:text-brand-dark text-xs leading-none ${ci === cats.length - 1 ? 'opacity-20 pointer-events-none' : ''}" data-ci="${ci}" title="Move down"><i class="fas fa-chevron-down"></i></button>
+                  </div>
                   <span class="text-xs font-bold uppercase text-gray-600 min-w-[100px]">${cat}</span>
                   <span class="text-[10px] text-gray-400">${photos.length} photo${photos.length > 1 ? 's' : ''}</span>
                   <div class="flex-1"></div>
                   <span class="text-[10px] text-gray-400 order-num">#${ci + 1}</span>
                 </div>
-                <div class="flex gap-1.5 px-4 pb-3 overflow-x-auto">
-                  ${photos.map(p => `<img src="${p.dataUrl}" class="w-14 h-10 rounded object-cover flex-shrink-0" />`).join('')}
+                <div class="flex gap-1.5 px-4 pb-3 overflow-x-auto scene-photos-${cat.replace(/\s+/g, '_')}">
+                  ${photos.map((p, pi) => `
+                    <div class="relative group flex-shrink-0">
+                      <img src="${p.dataUrl}" class="w-14 h-10 rounded object-cover" />
+                      <button class="scene-remove-photo absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition" data-cat="${cat}" data-pi="${groups[cat][pi]}" title="Remove from scene">&times;</button>
+                    </div>
+                  `).join('')}
                 </div>
               </div>
             `;
           }).join('')}
         </div>
+
+        <!-- Photo pool: all analyzed photos with category picker -->
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <h4 class="text-xs font-bold text-gray-600 mb-2 flex items-center gap-2">
+            <i class="fas fa-images text-brand-primary"></i> All Photos — click to assign to a scene
+          </h4>
+          <div class="flex flex-wrap gap-2">
+            ${analysisResults.map((r, i) => {
+              const photo = uploadedPhotos[r.photoIndex];
+              return `
+                <div class="pool-photo relative group w-20 text-center" data-ai="${r.photoIndex}">
+                  <img src="${photo ? photo.dataUrl : ''}" class="w-20 h-14 rounded-lg object-cover border-2 border-transparent hover:border-brand-primary transition cursor-pointer" onclick="togglePhotoPoolMenu(${i})" />
+                  <div class="text-[9px] text-gray-500 truncate mt-0.5">${r.category}</div>
+                  <div id="poolMenu-${i}" class="hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-10 w-44 text-left">
+                    <div class="text-[10px] font-semibold text-gray-500 px-2 py-1">Assign to scene:</div>
+                    ${ALL_CATEGORIES.map(cat => `
+                      <button class="pool-assign block w-full text-left text-xs px-2 py-1 rounded hover:bg-gray-100 ${cat === r.category ? 'text-brand-primary font-semibold' : 'text-gray-600'}" data-ai="${r.photoIndex}" data-cat="${cat}">${cat}</button>
+                    `).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
       `;
 
-      // Drag & drop setup
-      const sortable = $('sortableCategories');
-      let dragEl = null;
+      // Arrow navigation
+      container.querySelectorAll('.scene-move-up').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const ci = parseInt(this.dataset.ci);
+          if (ci === 0) return;
+          const groups = $('sortableCategories');
+          const els = [...groups.querySelectorAll('.category-group')];
+          if (ci > 0) groups.insertBefore(els[ci], els[ci - 1]);
+          updateCategorySceneOrder();
+        });
+      });
+      container.querySelectorAll('.scene-move-down').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const ci = parseInt(this.dataset.ci);
+          const groups = $('sortableCategories');
+          const els = [...groups.querySelectorAll('.category-group')];
+          if (ci < els.length - 1) groups.insertBefore(els[ci + 1], els[ci]);
+          updateCategorySceneOrder();
+        });
+      });
 
-      sortable.querySelectorAll('.category-group').forEach(el => {
-        el.addEventListener('dragstart', function(e) {
-          dragEl = this;
-          this.classList.add('opacity-50');
-          e.dataTransfer.effectAllowed = 'move';
+      // Remove photo from scene
+      container.querySelectorAll('.scene-remove-photo').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const cat = this.dataset.cat;
+          const pi = parseInt(this.dataset.pi);
+          if (!window._categoryGroups[cat]) return;
+          window._categoryGroups[cat] = window._categoryGroups[cat].filter(idx => idx !== pi);
+          // Reassign to "Other"
+          const ar = analysisResults.find(r => r.photoIndex === pi);
+          if (ar) ar.category = 'Other';
+          if (!window._categoryGroups['Other']) window._categoryGroups['Other'] = [];
+          if (!window._categoryGroups['Other'].includes(pi)) window._categoryGroups['Other'].push(pi);
+          renderCategoryOrder();
         });
-        el.addEventListener('dragend', function() {
-          this.classList.remove('opacity-50');
-          dragEl = null;
-          updateOrderNumbers();
-        });
-        el.addEventListener('dragover', function(e) {
-          e.preventDefault();
-          if (this !== dragEl) {
-            const all = [...sortable.querySelectorAll('.category-group')];
-            const idx = all.indexOf(this);
-            if (dragEl) {
-              const fromIdx = all.indexOf(dragEl);
-              if (fromIdx < idx) {
-                this.parentNode.insertBefore(dragEl, this.nextSibling);
-              } else {
-                this.parentNode.insertBefore(dragEl, this);
-              }
-            }
+      });
+
+      // Photo pool assign
+      container.querySelectorAll('.pool-assign').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const ai = parseInt(this.dataset.ai);
+          const newCat = this.dataset.cat;
+          const ar = analysisResults.find(r => r.photoIndex === ai);
+          if (!ar) return;
+          const oldCat = ar.category;
+          if (oldCat === newCat) { closeAllPoolMenus(); return; }
+          ar.category = newCat;
+          // Move from old group to new group
+          if (window._categoryGroups[oldCat]) {
+            window._categoryGroups[oldCat] = window._categoryGroups[oldCat].filter(idx => idx !== ai);
+            if (window._categoryGroups[oldCat].length === 0) delete window._categoryGroups[oldCat];
           }
+          if (!window._categoryGroups[newCat]) window._categoryGroups[newCat] = [];
+          if (!window._categoryGroups[newCat].includes(ai)) window._categoryGroups[newCat].push(ai);
+          closeAllPoolMenus();
+          renderCategoryOrder();
         });
+      });
+
+      // Close pool menus on outside click
+      document.addEventListener('click', function closeMenus(e) {
+        if (!e.target.closest('.pool-photo')) {
+          document.querySelectorAll('[id^="poolMenu-"]').forEach(m => m.classList.add('hidden'));
+        }
       });
     }
 
-    function updateOrderNumbers() {
+    function togglePhotoPoolMenu(index) {
+      const menu = $('poolMenu-' + index);
+      if (!menu) return;
+      const isOpen = !menu.classList.contains('hidden');
+      document.querySelectorAll('[id^="poolMenu-"]').forEach(m => m.classList.add('hidden'));
+      if (!isOpen) menu.classList.remove('hidden');
+    }
+
+    function closeAllPoolMenus() {
+      document.querySelectorAll('[id^="poolMenu-"]').forEach(m => m.classList.add('hidden'));
+    }
+
+    function updateCategorySceneOrder() {
       const groups = $('sortableCategories');
       if (!groups) return;
-      groups.querySelectorAll('.category-group').forEach((el, i) => {
-        const num = el.querySelector('.order-num');
-        if (num) num.textContent = '#' + (i + 1);
+      const newOrder = [...groups.querySelectorAll('.category-group')].map(el => el.dataset.category);
+      // Rebuild _categoryGroups based on display order
+      const reordered = {};
+      newOrder.forEach(cat => {
+        if (window._categoryGroups[cat]) reordered[cat] = window._categoryGroups[cat];
       });
+      // Add any missing categories (that might have been removed)
+      Object.keys(window._categoryGroups).forEach(cat => {
+        if (!reordered[cat]) reordered[cat] = window._categoryGroups[cat];
+      });
+      window._categoryGroups = reordered;
+      // Re-render to update arrow states and order numbers
+      renderCategoryOrder();
     }
 
     async function generateClipsFromOrder() {
