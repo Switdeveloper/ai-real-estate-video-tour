@@ -60,7 +60,6 @@
     .analysis-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
     .analysis-card .thumb { width: 100%; height: 120px; object-fit: cover; }
     .analysis-card .desc { font-size: 0.8125rem; color: #4b5563; line-height: 1.5; }
-    .script-area { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.7; min-height: 250px; resize: vertical; }
     .typing-dot { animation: pulse 1.4s infinite; }
     .typing-dot:nth-child(2) { animation-delay: 0.2s; }
     .typing-dot:nth-child(3) { animation-delay: 0.4s; }
@@ -327,40 +326,36 @@
       </div>
     </div>
 
-    <!-- STEP 3: Script Generation -->
+    <!-- STEP 3: Video Clips by Category -->
     <div id="step3" class="step-panel">
       <div class="reveal bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h2 class="text-lg font-bold text-brand-dark serif">Video Script</h2>
-            <p class="text-sm text-gray-500">AI-generated narrative script with voiceover lines, transitions, and music cues.</p>
+            <h2 class="text-lg font-bold text-brand-dark serif">Video Clips by Category</h2>
+            <p class="text-sm text-gray-500">Each photo becomes a clip with AI-generated voiceover, visual direction, and music. Edit any clip below.</p>
           </div>
-          <div class="flex gap-2">
-            <button onclick="generateScript()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-xs font-semibold hover:bg-gray-200 transition flex items-center gap-1.5">
-              <i class="fas fa-redo"></i> Regenerate
-            </button>
-            <button id="generateScriptBtn" onclick="generateScript()" class="bg-brand-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm">
-              <i class="fas fa-feather-alt"></i> Generate Script
-            </button>
-          </div>
+          <button id="generateScriptBtn" onclick="generateScript()" class="bg-brand-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm">
+            <i class="fas fa-feather-alt"></i> Generate Clips
+          </button>
         </div>
         <div id="scriptLoading" class="hidden flex items-center gap-3 text-sm text-gray-600 mb-4 py-8 justify-center">
           <i class="fas fa-spinner fa-spin text-brand-primary"></i>
-          <span>Generating your video script...</span>
+          <span>Generating clip scripts...</span>
         </div>
-        <textarea id="scriptOutput" class="script-area w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white font-body" placeholder="AI-generated script will appear here. You can edit it directly."></textarea>
+        <div id="clipScripts" class="space-y-3">
+          <div class="text-center py-12 text-gray-400">
+            <i class="fas fa-film text-3xl mb-3"></i>
+            <p class="text-sm">Click "Generate Clips" to create AI-powered voiceover and direction for each photo.</p>
+          </div>
+        </div>
         <div class="flex justify-between mt-6">
           <button onclick="goToStep(2)" class="text-sm text-gray-500 border border-gray-300 rounded-lg px-4 py-2 hover:bg-gray-50 transition">
             <i class="fas fa-arrow-left mr-1"></i> Back
           </button>
           <button id="step3Next" onclick="goToStep(4)" class="bg-brand-primary text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-            Next: Generate Clips <i class="fas fa-arrow-right text-xs"></i>
+            Next: Preview & Export <i class="fas fa-arrow-right text-xs"></i>
           </button>
         </div>
-      </div>
-      <div class="reveal delay-100 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <h3 class="text-sm font-bold text-gray-700 mb-2">Script Structure</h3>
-        <p class="text-xs text-gray-500">The script includes intro, room-by-room narration with transitions, and an outro. Edit any section as needed before proceeding.</p>
       </div>
     </div>
 
@@ -370,9 +365,8 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <h2 class="text-lg font-bold text-brand-dark serif">Video Clip Preview</h2>
-            <p class="text-sm text-gray-500">Each photo will become a 9-10 second cinematic clip. Review and configure below.</p>
+            <p class="text-sm text-gray-500">Preview your generated clips with voiceover, visual direction, and audio cues.</p>
           </div>
-          <span class="bg-amber-100 text-amber-700 text-[10px] font-semibold px-3 py-1 rounded-full">UI Preview — API integration coming soon</span>
         </div>
 
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
@@ -680,7 +674,8 @@
       $('analysisResults').classList.add('hidden');
       $('analysisResults').innerHTML = '';
       $('step2Next').disabled = true;
-      $('scriptOutput').value = '';
+      generatedClips = [];
+      $('clipScripts').innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-film text-3xl mb-3"></i><p class="text-sm">Click "Generate Clips" to create AI-powered voiceover and direction for each photo.</p></div>';
       $('step3Next').disabled = true;
     }
 
@@ -812,7 +807,10 @@
       isAnalyzing = false;
     }
 
-    // ── Step 3: Script Generation ──
+    // ── Clips data ──
+    let generatedClips = [];
+
+    // ── Step 3: Generate Clip Scripts ──
     async function generateScript() {
       const key = getApiKey();
       if (!key) {
@@ -832,7 +830,9 @@
       $('step3Next').disabled = true;
 
       const model = getModelValue('script');
-      const roomDescs = analysisResults.map((r, i) => `Photo ${i + 1} [${r.category || 'Other'}]: ${r.tag || r.raw || 'No description'}`).join('\n\n');
+      const roomDescs = analysisResults.map((r, i) =>
+        `Photo ${i + 1} [${r.category || 'Other'}]: ${r.tag || r.raw || 'No description'}`
+      ).join('\n\n');
       const propDetails = $('propertyDetails').value.trim();
       const vidPrompt = $('videoPrompt').value.trim();
 
@@ -842,21 +842,21 @@
 
       const prompt = `You are a professional real estate video scriptwriter. Create a cinematic video tour script based on these room descriptions.${extras}
 
-Each room gets 9-10 seconds of screen time. Structure:
-- INTRO: Hook with the property's best feature
-- For each room: a voiceover line (what to say) + transition direction + music cue
-- OUTRO: Call to action
+There are ${analysisResults.length} photos. Each photo will be a 9-10 second video clip.
+Return a JSON array of clip objects. No markdown, no code fences, pure JSON only.
 
-Format each room as:
-[ROOM NAME] (X sec)
-Voiceover: "..."
-Visual: [camera direction]
-Audio: [music/sound cue]
+For each photo, output an object with these fields:
+{
+  "category": "the category from the photo",
+  "voiceover": "a 1-2 sentence voiceover line for this clip in quotes",
+  "visual": "camera direction / visual style for the clip (e.g. slow pan left, smooth zoom in)",
+  "audio": "music/sound cue (e.g. warm piano fades in, upbeat modern beat)"
+}
 
-Property rooms:
+Photos:
 ${roomDescs}
 
-Total target: ${analysisResults.length * 10} seconds.`;
+Output a JSON array of ${analysisResults.length} objects. ONLY valid JSON.`;
 
       try {
         const res = await fetch(API_BASE + '/chat/completions', {
@@ -869,63 +869,182 @@ Total target: ${analysisResults.length * 10} seconds.`;
           body: JSON.stringify({
             model: model,
             messages: [
-              { role: 'system', content: 'You write professional real estate video scripts. Be concise and cinematic.' },
+              { role: 'system', content: 'You output JSON only. No markdown, no explanations.' },
               { role: 'user', content: prompt }
             ],
-            max_tokens: 2048,
-            temperature: 0.5
+            max_tokens: 4096,
+            temperature: 0.4
           })
         });
 
         if (res.ok) {
           const data = await res.json();
-          const script = data.choices?.[0]?.message?.content || 'Script generation failed.';
-          $('scriptOutput').value = script;
-          $('step3Next').disabled = false;
-          showToast('Script generated!');
+          let raw = data.choices?.[0]?.message?.content || '[]';
+          // Strip code fences if present
+          raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+          let parsed;
+          try {
+            parsed = JSON.parse(raw);
+          } catch(e) {
+            // Try extracting array with regex
+            const arrMatch = raw.match(/\[[\s\S]*\]/);
+            if (arrMatch) {
+              try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
+            } else {
+              parsed = null;
+            }
+          }
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            generatedClips = parsed.map((c, i) => ({
+              ...c,
+              photoIndex: i,
+              category: c.category || analysisResults[i]?.category || 'Other',
+              voiceover: c.voiceover || 'No voiceover generated.',
+              visual: c.visual || 'Static shot',
+              audio: c.audio || 'Background music'
+            }));
+            renderClipScripts();
+            $('step3Next').disabled = false;
+            showToast('Generated ' + generatedClips.length + ' clips!');
+          } else {
+            // Fallback: create basic clips from analysis
+            generatedClips = analysisResults.map((r, i) => ({
+              photoIndex: i,
+              category: r.category || 'Other',
+              voiceover: 'Welcome to this beautiful ' + (r.tag || 'property') + '.',
+              visual: 'Smooth pan across the room',
+              audio: 'Soft ambient music'
+            }));
+            renderClipScripts();
+            $('step3Next').disabled = false;
+            showToast('Used fallback clips (AI did not return valid JSON)');
+          }
         } else {
           const err = await res.text();
-          try { const j = JSON.parse(err); $('scriptOutput').value = 'Error: ' + (j.error?.message || j.error || err); } catch(e) { $('scriptOutput').value = 'Error: ' + err; }
+          try { const j = JSON.parse(err); showToast('Error: ' + (j.error?.message || j.error)); } catch(e) { showToast('API Error'); }
         }
       } catch (err) {
-        $('scriptOutput').value = 'Network error: ' + err.message;
+        showToast('Network error: ' + err.message);
       }
 
       isGeneratingScript = false;
       $('generateScriptBtn').disabled = false;
-      $('generateScriptBtn').innerHTML = '<i class="fas fa-feather-alt"></i> Generate Script';
+      $('generateScriptBtn').innerHTML = '<i class="fas fa-feather-alt"></i> Regenerate Clips';
       $('scriptLoading').classList.add('hidden');
     }
 
-    // ── Step 4: Clip Preview (UI only) ──
+    function renderClipScripts() {
+      const container = $('clipScripts');
+      if (!generatedClips.length) {
+        container.innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-film text-3xl mb-3"></i><p class="text-sm">No clips generated yet.</p></div>';
+        return;
+      }
+      container.innerHTML = generatedClips.map((clip, i) => {
+        const photo = uploadedPhotos[clip.photoIndex];
+        const analysis = analysisResults[clip.photoIndex];
+        const imgSrc = photo ? photo.dataUrl : '';
+        const catColors = {
+          'Exterior': 'bg-green-100 text-green-700', 'Living Room': 'bg-blue-100 text-blue-700',
+          'Kitchen': 'bg-orange-100 text-orange-700', 'Dining Room': 'bg-amber-100 text-amber-700',
+          'Bedroom': 'bg-purple-100 text-purple-700', 'Bathroom': 'bg-cyan-100 text-cyan-700',
+          'Office': 'bg-indigo-100 text-indigo-700', 'Agent Photo': 'bg-pink-100 text-pink-700',
+          'Detail Shot': 'bg-gray-200 text-gray-700', 'Backyard': 'bg-emerald-100 text-emerald-700',
+          'Pool': 'bg-sky-100 text-sky-700', 'Balcony': 'bg-teal-100 text-teal-700',
+          'Garage': 'bg-stone-100 text-stone-700', 'Basement': 'bg-neutral-100 text-neutral-700',
+          'Hallway': 'bg-violet-100 text-violet-700', 'Staircase': 'bg-fuchsia-100 text-fuchsia-700',
+        };
+        const catColor = catColors[clip.category] || 'bg-gray-100 text-gray-600';
+        return `
+          <div class="clip-card" data-clip-index="${i}">
+            <div class="flex flex-col sm:flex-row">
+              <div class="sm:w-32 flex-shrink-0">
+                <img src="${imgSrc}" class="w-full h-20 sm:h-full sm:w-32 object-cover" />
+              </div>
+              <div class="p-3 sm:p-4 flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${catColor}">${clip.category}</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div class="sm:col-span-3">
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Voiceover</label>
+                    <textarea class="clip-voiceover w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}">${clip.voiceover}</textarea>
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Visual</label>
+                    <input type="text" class="clip-visual w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="${clip.visual}" data-i="${i}" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Audio</label>
+                    <input type="text" class="clip-audio w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="${clip.audio}" data-i="${i}" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Duration</label>
+                    <div class="flex items-center gap-1">
+                      <input type="number" class="clip-duration w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="9" min="5" max="15" data-i="${i}" />
+                      <span class="text-gray-400">sec</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Auto-save edits
+      container.querySelectorAll('.clip-voiceover').forEach(el => {
+        el.addEventListener('input', function() {
+          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].voiceover = this.value;
+        });
+      });
+      container.querySelectorAll('.clip-visual').forEach(el => {
+        el.addEventListener('input', function() {
+          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].visual = this.value;
+        });
+      });
+      container.querySelectorAll('.clip-audio').forEach(el => {
+        el.addEventListener('input', function() {
+          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].audio = this.value;
+        });
+      });
+      container.querySelectorAll('.clip-duration').forEach(el => {
+        el.addEventListener('input', function() {
+          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].duration = parseInt(this.value) || 9;
+        });
+      });
+    }
+
+    // ── Step 4: Clip Preview ──
     function renderClipList() {
       const container = $('clipList');
-      if (uploadedPhotos.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">No photos uploaded. Go back to step 1.</p>';
+      if (!generatedClips.length) {
+        container.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">Generate clips in step 3 first.</p>';
         return;
       }
 
       const duration = parseInt($('clipDuration').value) || 10;
-      container.innerHTML = uploadedPhotos.map((p, i) => `
-        <div class="clip-card flex items-center gap-4 p-3">
-          <img src="${p.dataUrl}" class="w-24 h-16 rounded-lg object-cover flex-shrink-0" />
-          <div class="flex-1 min-w-0">
-            <div class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</div>
-            <div class="text-sm text-gray-700 truncate">${p.name.replace(/\.[^.]+$/, '')}</div>
-            <div class="text-xs text-gray-400">${duration}s &middot; ${$('clipResolution').value}</div>
+      container.innerHTML = generatedClips.map((clip, i) => {
+        const photo = uploadedPhotos[clip.photoIndex];
+        const clipDur = clip.duration || duration;
+        return `
+          <div class="clip-card flex items-center gap-4 p-3">
+            <img src="${photo ? photo.dataUrl : ''}" class="w-24 h-16 rounded-lg object-cover flex-shrink-0" />
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
+                <span class="text-[10px] text-brand-primary font-medium">${clip.category}</span>
+              </div>
+              <div class="text-sm text-gray-700 truncate">${clip.voiceover}</div>
+              <div class="text-xs text-gray-400">${clipDur}s &middot; ${clip.visual}</div>
+            </div>
           </div>
-          <div class="text-xs text-gray-400">
-            <i class="fas fa-video text-brand-primary mr-1"></i>
-            <span class="${i < analysisResults.length ? 'text-green-600' : 'text-amber-500'}">
-              ${i < analysisResults.length ? 'Analyzed' : 'Pending'}
-            </span>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
-      const total = uploadedPhotos.length * duration;
-      const cost = total * 0.08; // est $0.08/sec
-      $('clipCount').textContent = uploadedPhotos.length;
+      const total = generatedClips.reduce((sum, c) => sum + (c.duration || duration), 0);
+      const cost = total * 0.08;
+      $('clipCount').textContent = generatedClips.length;
       $('totalDuration').textContent = total + 's';
       $('estCost').textContent = '$' + cost.toFixed(2);
     }
@@ -944,14 +1063,6 @@ Total target: ${analysisResults.length * 10} seconds.`;
       $('exportResolution').textContent = $('clipResolution').value;
       $('exportCost').textContent = '$' + cost.toFixed(2);
     }
-
-    // ── Script editing enables step 4 ──
-    $('scriptOutput').addEventListener('input', function() {
-      if (this.value.trim().length > 50) {
-        $('step3Next').disabled = false;
-      }
-    });
-
     // ── Toast ──
     function showToast(msg) {
       const toast = $('toast');
