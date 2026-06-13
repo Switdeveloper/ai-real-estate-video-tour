@@ -260,6 +260,15 @@
           </div>
         </div>
 
+        <div class="mb-6">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Dialogue Style</label>
+          <select id="dialogueMode" class="w-full sm:w-72 border border-gray-300 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white">
+            <option value="walkthrough" selected>Mode 1: Realtor Walkthrough (Default)</option>
+            <option value="luxury">Mode 2: Luxury Marketing</option>
+            <option value="social">Mode 3: Social Media Reel</option>
+          </select>
+        </div>
+
         <!-- Salesperson / Agent -->
         <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
           <h3 class="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
@@ -615,6 +624,7 @@
           agentPhotoData: agentPhotoData || '',
           propertyDetails: $('propertyDetails')?.value || '',
           videoPrompt: $('videoPrompt')?.value || '',
+          dialogueMode: $('dialogueMode')?.value || 'walkthrough',
           uploadedPhotos: uploadedPhotos.map(p => ({ name: p.name, dataUrl: p.dataUrl })),
           analysisResults: analysisResults,
           generatedClips: generatedClips,
@@ -642,6 +652,7 @@
         }
         if (state.propertyDetails) $('propertyDetails').value = state.propertyDetails;
         if (state.videoPrompt) $('videoPrompt').value = state.videoPrompt;
+        if (state.dialogueMode) $('dialogueMode').value = state.dialogueMode;
 
         if (state.uploadedPhotos && state.uploadedPhotos.length) {
           uploadedPhotos = state.uploadedPhotos;
@@ -1283,6 +1294,74 @@
       saveMemory();
     }
 
+    function getDialogueRules() {
+      const mode = ($('dialogueMode') || {}).value || 'walkthrough';
+      const baseRules = `
+-----------------------------------------------
+DIALOGUE GENERATION RULES
+
+Generate dialogue exactly as a professional real estate agent would speak during an in-person property tour.
+
+DO NOT generate:
+- Generic marketing language
+- Sales brochure text
+- Corporate advertising copy
+- Repetitive luxury buzzwords
+- Overly formal language
+
+AVOID PHRASES LIKE:
+- luxury living
+- stunning property
+- exceptional opportunity
+- dream home
+- exquisite design
+- premium lifestyle
+- unparalleled elegance
+
+INSTEAD:
+Generate natural realtor conversation.
+The agent should sound like they are physically walking beside a buyer.
+The dialogue should feel: Conversational, Friendly, Professional, Trustworthy, Authentic, Personal.
+
+The agent should point out features naturally as they appear on screen.
+The dialogue must reference visible features in the images, property description provided, room function, and buyer benefits.
+
+The agent should occasionally use phrases such as:
+- "One thing I really like..."
+- "Take a look at..."
+- "You'll notice..."
+- "What makes this space special..."
+- "Imagine coming home to..."
+- "This is a feature buyers love..."
+- "The current owners have invested heavily here..."
+- "Let's head into the next space..."
+
+Every clip should feel like part of one continuous walkthrough.`;
+
+      if (mode === 'walkthrough') {
+        return `Mode: Realtor Walkthrough (Default)
+
+${baseRules}
+
+The agent speaks conversationally as if guiding a buyer through the property in person. Warm, personal, authentic.`;
+      }
+      if (mode === 'luxury') {
+        return `Mode: Luxury Marketing
+
+${baseRules}
+
+The agent uses polished, high-end listing language suitable for a luxury brokerage video. Elegant, aspirational, sophisticated — but still natural and not robotic. Focus on craftsmanship, quality materials, and premium lifestyle benefits.`;
+      }
+      if (mode === 'social') {
+        return `Mode: Social Media Reel
+
+${baseRules}
+
+Short, punchy, energetic dialogue for TikTok/Instagram style reels. Fast-paced, enthusiastic, highlight-worthy. Use shorter sentences, exclamation where appropriate, and create a sense of discovery and excitement. Keep it under 15 words per sentence where possible.`;
+      }
+      return baseRules;
+    }
+
     async function generateClipsFromOrder() {
       const key = getApiKey();
       if (!key) {
@@ -1415,6 +1494,8 @@ Everything must come from the uploaded images.
 The property must remain identical to the uploaded images throughout the scene.
 The agent must remain identical to the uploaded reference image.${prevClipContext}
 
+${getDialogueRules()}
+
 ------------------------------------------------
 
 OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
@@ -1428,7 +1509,7 @@ OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
   "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
   "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
   "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
-  "dialogue": "a 9-second luxury realtor voiceover. Promote the property. Highlight actual visible features. Never discuss features not shown.",
+  "dialogue": "natural realtor conversation following the dialogue rules above — conversational, friendly, authentic. Must reference visible features and sound like a real in-person walkthrough.",
   "timeline": "0-9 second timeline of camera, agent, and visuals",
   "negativePrompt": "No invented rooms or architecture. No new furniture. No imaginary landscaping. No changes to the property.",
   "continueScene": "visual and audio transition leading into the next room or section"
@@ -1631,6 +1712,8 @@ Everything must come from the uploaded images.
 The property must remain identical to the uploaded images throughout the scene.
 The agent must remain identical to the uploaded reference image.${prevClipContext}
 
+${getDialogueRules()}
+
 ------------------------------------------------
 
 OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
@@ -1644,7 +1727,7 @@ OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
   "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
   "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
   "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
-  "dialogue": "a 9-second luxury realtor voiceover. Promote the property. Highlight actual visible features. Never discuss features not shown.",
+  "dialogue": "natural realtor conversation following the dialogue rules above — conversational, friendly, authentic. Must reference visible features and sound like a real in-person walkthrough.",
   "timeline": "0-9 second timeline of camera, agent, and visuals",
   "negativePrompt": "No invented rooms or architecture. No new furniture. No imaginary landscaping. No changes to the property.",
   "continueScene": "visual and audio transition leading into the next room or section"
