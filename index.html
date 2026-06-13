@@ -1344,41 +1344,74 @@
       ).join('\n\n');
 
       const agentName = ($('agentName').value || 'your agent').trim();
-      const agentInfo = agentPhotoData
-        ? `The salesperson/agent "${agentName}" has a photo/avatar available.`
-        : `The salesperson/agent is "${agentName}".`;
+      const agentAvatarInfo = agentPhotoData
+        ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in every clip.`
+        : `The agent is named "${agentName}".`;
 
-      const prompt = `You are a professional real estate video scriptwriter. Using the agent avatar provided and the property walkthrough prompt, generate each video clip sequentially.
+      const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIPS
 
-First, the images are categorized into sections such as exterior, kitchen, bedroom, etc. Each clip must follow the order chosen below — starting with the outside, then moving inside room by room.
+OBJECTIVE
 
-Each section may contain multiple photos. Use ALL photos within a section together to create a single cinematic clip that weaves through those images.
+Generate a complete AI video prompt for EACH clip category.
 
-As each clip is generated, ensure the script describes the relevant space as a whole, highlighting key selling points provided earlier. Proceed step by step, with each clip script flowing naturally into the next, until the full walkthrough is complete.
+Do NOT generate short summaries.
+Do NOT generate simple room descriptions.
+Generate professional video-generation prompts that can be used directly inside Google Veo, Google Flow, Kling, Runway, Sora, Hailuo, PixVerse, Pika, Luma, or similar tools.
 
-Each clip must end with a "continue scene" — a visual and audio transition that leads directly into the next clip. For the final clip, end with a closing shot and fade-out.
+------------------------------------------------
 
-In every generated clip, incorporate the agent "${agentName}" — their avatar/photo should appear on screen as a constant visual element in every clip — whether narrating, walking through, or appearing as a virtual guide. The agent's image must be visible in every single clip, not just mentioned in voiceover. Ensure the agent's presence ties naturally into each section being described, enhancing the authenticity of the virtual tour.${extras}
+INPUTS
 
-${agentInfo}
+1. Property Description
+Use all property information provided. Identify luxury features, selling points, renovations, exterior upgrades, kitchen upgrades, bedroom features, bathroom features, backyard features, and location advantages.${extras}
+
+2. Agent Avatar
+${agentAvatarInfo}
+The agent must appear in EVERY generated clip as a constant visual element on screen.
+
+3. Image Categories
+Use categories generated during analysis. Each section below represents one category.
+
+------------------------------------------------
+
+GENERATE ONE CLIP AT A TIME
+
+Generate clips sequentially in the order below.
+Do NOT generate all clips as one paragraph.
+Each clip must be individually generated with all required fields.
+
+------------------------------------------------
 
 VIDEO CLIP SEQUENCE (IN THIS EXACT ORDER) — 1 clip per section, combining all photos within that section:
 ${catSequence}
 
-There are ${orderedCatData.length} sections total. Return a JSON array of exactly ${orderedCatData.length} clip objects. No markdown, no code fences, pure JSON only.
+------------------------------------------------
 
-For each clip, output an object with exactly these fields:
+FOR EACH CLIP GENERATE THESE FIELDS:
+
 {
-  "category": "the category/section name from the sequence above",
-  "voiceover": "a 1-2 sentence voiceover line describing the entire space, referencing the agent ${agentName} naturally. End with a transitional line leading to the next room.",
-  "visual": "camera direction / visual style transitioning between all photos in this section, with the agent's avatar visible on screen at all times. Include the agent's presence naturally. End with a continue-scene transition toward the next space.",
-  "audio": "music/sound cue. End with a transition audio cue bridging to the next clip."
+  "category": "the category/section name",
+  "title": "a short cinematic title for this clip",
+  "scenePurpose": "what this clip achieves in the tour",
+  "referenceImages": "list the uploaded images assigned to this category — use ONLY these",
+  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images assigned to this category. Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features. Everything must come from uploaded images.",
+  "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
+  "cameraMovement": "realistic camera motion — drone movement, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot. Motion must match the scene.",
+  "agentMovement": "how the agent moves through this scene — must keep the agent's face, hair, age, clothing, body proportions identical to the uploaded reference image.",
+  "dialogue": "a 9-second voiceover that sounds like a luxury realtor. Promote the property, highlight actual visible features from the images. Never discuss features not shown.",
+  "timeline": "a 0-9 second timeline breaking down camera, agent movement, and visuals",
+  "negativePrompt": "No invented rooms. No AI-generated architecture. No new furniture. No imaginary landscaping. No changes to the property. Do not generate anything not visible in the uploaded images.",
+  "continueScene": "visual and audio transition leading directly into the next clip. For the final clip, end with a closing shot and fade-out."
 }
+
+------------------------------------------------
 
 Photos organized by section in sequence order:
 ${catDescriptions}
 
-Output a JSON array of exactly ${orderedCatData.length} objects. ONLY valid JSON.`;
+------------------------------------------------
+
+Output a JSON array of exactly ${orderedCatData.length} objects following the format above. ONLY valid JSON. No markdown, no code fences.`;
 
       try {
         const res = await fetch(API_BASE + '/chat/completions', {
@@ -1422,9 +1455,17 @@ Output a JSON array of exactly ${orderedCatData.length} objects. ONLY valid JSON
                 photoIndex: catData.photoIndices ? catData.photoIndices[0] : i,
                 photoIndices: catData.photoIndices || [i],
                 category: c.category || catData.category || 'Other',
-                voiceover: c.voiceover || 'Welcome to this beautiful property.',
-                visual: c.visual || 'Static shot',
-                audio: c.audio || 'Background music'
+                voiceover: c.dialogue || c.voiceover || 'Welcome to this beautiful property.',
+                visual: `Style: ${c.videoStyle || 'Luxury cinematic'}. Camera: ${c.cameraMovement || 'Static shot'}. Agent: ${c.agentMovement || 'On screen'}`,
+                audio: c.audio || 'Cinematic luxury background music',
+                dialogue: c.dialogue || '',
+                scenePurpose: c.scenePurpose || '',
+                cameraMovement: c.cameraMovement || '',
+                agentMovement: c.agentMovement || '',
+                videoStyle: c.videoStyle || '',
+                timeline: c.timeline || '',
+                negativePrompt: c.negativePrompt || '',
+                continueScene: c.continueScene || ''
               };
             });
             renderClipScripts();
@@ -1438,8 +1479,16 @@ Output a JSON array of exactly ${orderedCatData.length} objects. ONLY valid JSON
               photoIndices: d.photoIndices,
               category: d.category,
               voiceover: 'Welcome to the ' + d.category.toLowerCase() + ' of this beautiful property.',
-              visual: 'Smooth transition through the ' + d.category.toLowerCase(),
-              audio: 'Soft ambient music'
+              visual: `Cinematic ${d.category.toLowerCase()} tour with agent on screen`,
+              audio: 'Cinematic luxury background music',
+              dialogue: 'Welcome to the ' + d.category.toLowerCase() + ' of this beautiful property.',
+              scenePurpose: 'Showcase the ' + d.category.toLowerCase(),
+              cameraMovement: 'Slow dolly',
+              agentMovement: 'Agent gestures toward the space',
+              videoStyle: 'Luxury real estate, 4K HDR, photorealistic',
+              timeline: '0-9s: Continuous walkthrough',
+              negativePrompt: 'No invented rooms or furniture',
+              continueScene: i < orderedCatData.length - 1 ? 'Transition to next room' : 'Fade to black'
             }));
             renderClipScripts();
             $('step3Next').disabled = false;
@@ -1496,28 +1545,64 @@ Output a JSON array of exactly ${orderedCatData.length} objects. ONLY valid JSON
         if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
 
         const model = getModelValue('script');
-        const prompt = `You are a professional real estate video scriptwriter. Create one cinematic video clip script for the "${cat}" section of a property walkthrough.
+        const agentAvatarInfo = agentPhotoData
+          ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in this clip.`
+          : `The agent is named "${agentName}".`;
 
-In every clip, incorporate the agent "${agentName}" — their avatar/photo should appear on screen as a constant visual element — whether narrating, walking through, or appearing as a virtual guide. The agent's image must be visible in every single clip, not just mentioned in voiceover.${extras}
+        const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIP
 
-There are ${orderedPhotoIndices.length} photos for this section. Use ALL of them together to create a single 9-10 second video clip that weaves through these images.
+OBJECTIVE
 
-The clip should end with a visual and audio transition that naturally leads into the next room or section.${extras}
+Generate a complete AI video prompt for the "${cat}" section.
 
-Return a JSON array containing exactly 1 clip object. No markdown, no code fences, pure JSON only.
+Do NOT generate a short summary.
+Do NOT generate a simple room description.
+Generate a professional video-generation prompt usable in Google Veo, Kling, Runway, Sora, or similar tools.
 
-The clip object must have these fields:
-{
-  "category": "${cat}",
-  "voiceover": "a 1-2 sentence voiceover line referencing the agent ${agentName} naturally, describing the entire space across all photos",
-  "visual": "camera direction / visual style that transitions between all photos, with the agent's avatar visible on screen at all times. End with a transition leading to the next space.",
-  "audio": "music/sound cue. End with a transition cue bridging to the next clip."
-}
+------------------------------------------------
 
-All photos for this section (combine into one clip):
+INPUTS
+
+Property Description:
+${extras ? extras.replace(/\n/g, '\n') : 'Use the property details and video style provided by the user.'}
+
+Agent Avatar:
+${agentAvatarInfo}
+The agent must appear in this clip as a constant visual element on screen.
+
+Images:
 ${orderedDescs}
 
-Output a JSON array with exactly 1 object. ONLY valid JSON.`;
+------------------------------------------------
+
+CRITICAL IMAGE RULES
+
+Use ONLY the uploaded images assigned to "${cat}".
+Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
+Everything must come from the uploaded images.
+The property must remain identical to the uploaded images throughout the scene.
+The agent must remain identical to the uploaded reference image.
+
+------------------------------------------------
+
+OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
+
+{
+  "category": "${cat}",
+  "title": "a short cinematic title for this clip",
+  "scenePurpose": "what this clip achieves in the tour",
+  "referenceImages": "list the uploaded images to use — ONLY these",
+  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images. Do not invent anything.",
+  "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
+  "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
+  "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
+  "dialogue": "a 9-second luxury realtor voiceover. Promote the property. Highlight actual visible features. Never discuss features not shown.",
+  "timeline": "0-9 second timeline of camera, agent, and visuals",
+  "negativePrompt": "No invented rooms or architecture. No new furniture. No imaginary landscaping. No changes to the property.",
+  "continueScene": "visual and audio transition leading into the next room or section"
+}
+
+Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code fences.`;
 
         const res = await fetch(API_BASE + '/chat/completions', {
           method: 'POST',
@@ -1558,9 +1643,17 @@ Output a JSON array with exactly 1 object. ONLY valid JSON.`;
               photoIndex: orderedPhotoIndices[0],
               photoIndices: orderedPhotoIndices,
               category: cat,
-              voiceover: c.voiceover || 'Welcome to this beautiful property.',
-              visual: c.visual || 'Static shot',
-              audio: c.audio || 'Background music'
+              voiceover: c.dialogue || c.voiceover || 'Welcome to this beautiful property.',
+              visual: `Style: ${c.videoStyle || 'Luxury cinematic'}. Camera: ${c.cameraMovement || 'Static shot'}. Agent: ${c.agentMovement || 'On screen'}`,
+              audio: c.audio || 'Cinematic luxury background music',
+              dialogue: c.dialogue || '',
+              scenePurpose: c.scenePurpose || '',
+              cameraMovement: c.cameraMovement || '',
+              agentMovement: c.agentMovement || '',
+              videoStyle: c.videoStyle || '',
+              timeline: c.timeline || '',
+              negativePrompt: c.negativePrompt || '',
+              continueScene: c.continueScene || ''
             }));
             // Insert at the correct position based on this category's order (1 clip per category)
             const sortable = $('sortableCategories');
@@ -1625,27 +1718,47 @@ Output a JSON array with exactly 1 object. ONLY valid JSON.`;
               <div class="p-3 sm:p-4 flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-2">
                   <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
+                  <span class="text-[10px] font-semibold text-gray-700">${clip.title || ''}</span>
                   <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${catColor}">${clip.category}</span>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  <div class="sm:col-span-3">
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Voiceover</label>
-                    <textarea class="clip-voiceover w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}">${clip.voiceover}</textarea>
+                <div class="grid grid-cols-1 gap-2 text-xs">
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Scene Purpose</label>
+                    <div class="text-gray-700">${clip.scenePurpose || ''}</div>
                   </div>
                   <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Visual</label>
-                    <input type="text" class="clip-visual w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="${clip.visual}" data-i="${i}" />
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Dialogue</label>
+                    <textarea class="clip-voiceover w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}">${clip.dialogue || clip.voiceover || ''}</textarea>
                   </div>
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Audio</label>
-                    <input type="text" class="clip-audio w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="${clip.audio}" data-i="${i}" />
-                  </div>
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Duration</label>
-                    <div class="flex items-center gap-1">
-                      <input type="number" class="clip-duration w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="9" min="5" max="15" data-i="${i}" />
-                      <span class="text-gray-400">sec</span>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Video Style</label>
+                      <div class="text-gray-600">${clip.videoStyle || ''}</div>
                     </div>
+                    <div>
+                      <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Camera Movement</label>
+                      <div class="text-gray-600">${clip.cameraMovement || ''}</div>
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Agent Movement</label>
+                      <div class="text-gray-600">${clip.agentMovement || ''}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Timeline</label>
+                    <div class="text-gray-600 whitespace-pre-wrap">${clip.timeline || ''}</div>
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Negative Prompt</label>
+                    <div class="text-gray-500 italic">${clip.negativePrompt || ''}</div>
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Continue Scene</label>
+                    <div class="text-gray-600">${clip.continueScene || ''}</div>
+                  </div>
+                  <div class="flex items-center gap-4 border-t border-gray-100 pt-2 mt-1">
+                    <span class="text-[10px] text-gray-400"><strong>Reference:</strong> ${photosCount} photo${photosCount > 1 ? 's' : ''}</span>
+                    <span class="text-[10px] text-gray-400"><strong>Duration:</strong> <input type="number" class="clip-duration w-12 border border-gray-200 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-primary/20" value="${clip.duration || 9}" min="5" max="15" data-i="${i}" /> sec</span>
                   </div>
                 </div>
               </div>
@@ -1699,10 +1812,15 @@ Output a JSON array with exactly 1 object. ONLY valid JSON.`;
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-0.5">
                 <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
+                <span class="text-[10px] font-semibold text-gray-600">${clip.title || ''}</span>
                 <span class="text-[10px] text-brand-primary font-medium">${clip.category}</span>
               </div>
-              <div class="text-sm text-gray-700 truncate">${clip.voiceover}</div>
-              <div class="text-xs text-gray-400">${clipDur}s &middot; ${clip.visual}</div>
+              <div class="text-sm text-gray-700">${clip.dialogue || clip.voiceover || ''}</div>
+              <div class="text-xs text-gray-400 mt-0.5">${clipDur}s &middot; ${clip.cameraMovement || clip.visual || ''}</div>
+              <div class="text-[10px] text-gray-400 flex items-center gap-3 mt-1">
+                ${clip.videoStyle ? `<span>${clip.videoStyle}</span>` : ''}
+                ${clip.agentMovement ? `<span>Agent: ${clip.agentMovement}</span>` : ''}
+              </div>
             </div>
           </div>
         `;
