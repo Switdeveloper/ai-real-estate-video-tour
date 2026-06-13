@@ -1358,7 +1358,7 @@ As each clip is generated, ensure the script describes the relevant space as a w
 
 Each clip must end with a "continue scene" — a visual and audio transition that leads directly into the next clip. For the final clip, end with a closing shot and fade-out.
 
-In every generated clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide — so the viewer feels personally engaged. Ensure the agent's presence ties naturally into each section being described, enhancing the authenticity of the virtual tour.${extras}
+In every generated clip, incorporate the agent "${agentName}" — their avatar/photo should appear on screen as a constant visual element in every clip — whether narrating, walking through, or appearing as a virtual guide. The agent's image must be visible in every single clip, not just mentioned in voiceover. Ensure the agent's presence ties naturally into each section being described, enhancing the authenticity of the virtual tour.${extras}
 
 ${agentInfo}
 
@@ -1371,7 +1371,7 @@ For each clip, output an object with exactly these fields:
 {
   "category": "the category/section name from the sequence above",
   "voiceover": "a 1-2 sentence voiceover line describing the entire space, referencing the agent ${agentName} naturally. End with a transitional line leading to the next room.",
-  "visual": "camera direction / visual style transitioning between all photos in this section, including the agent's presence. End with a continue-scene transition toward the next space.",
+  "visual": "camera direction / visual style transitioning between all photos in this section, with the agent's avatar visible on screen at all times. Include the agent's presence naturally. End with a continue-scene transition toward the next space.",
   "audio": "music/sound cue. End with a transition audio cue bridging to the next clip."
 }
 
@@ -1498,7 +1498,7 @@ Output a JSON array of exactly ${orderedCatData.length} objects. ONLY valid JSON
         const model = getModelValue('script');
         const prompt = `You are a professional real estate video scriptwriter. Create one cinematic video clip script for the "${cat}" section of a property walkthrough.
 
-In every clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide.${extras}
+In every clip, incorporate the agent "${agentName}" — their avatar/photo should appear on screen as a constant visual element — whether narrating, walking through, or appearing as a virtual guide. The agent's image must be visible in every single clip, not just mentioned in voiceover.${extras}
 
 There are ${orderedPhotoIndices.length} photos for this section. Use ALL of them together to create a single 9-10 second video clip that weaves through these images.
 
@@ -1510,7 +1510,7 @@ The clip object must have these fields:
 {
   "category": "${cat}",
   "voiceover": "a 1-2 sentence voiceover line referencing the agent ${agentName} naturally, describing the entire space across all photos",
-  "visual": "camera direction / visual style that transitions between all photos, including the agent's presence. End with a transition leading to the next space.",
+  "visual": "camera direction / visual style that transitions between all photos, with the agent's avatar visible on screen at all times. End with a transition leading to the next space.",
   "audio": "music/sound cue. End with a transition cue bridging to the next clip."
 }
 
