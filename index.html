@@ -358,7 +358,7 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <h2 class="text-lg font-bold text-brand-dark serif">Arrange Clip Order</h2>
-            <p class="text-sm text-gray-500">Drag categories to set your preferred clip sequence, then generate the script.</p>
+            <p class="text-sm text-gray-500">Use arrows to reorder scenes, then generate clip scripts in your chosen sequence.</p>
           </div>
           <button id="generateScriptBtn" onclick="generateClipsFromOrder()" class="bg-brand-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
             <i class="fas fa-feather-alt"></i> Generate Clips
@@ -1281,8 +1281,19 @@
         return;
       }
 
-      const sortable = $('sortableCategories');
-      if (!sortable) return;
+      let sortable = $('sortableCategories');
+      if (!sortable) {
+        renderCategoryOrder();
+        sortable = $('sortableCategories');
+        if (!sortable) {
+          showToast('No categories to generate from. Complete analysis in step 2 first.');
+          $('generateScriptBtn').disabled = false;
+          $('generateScriptBtn').innerHTML = '<i class="fas fa-feather-alt"></i> Generate Clips';
+          $('orderLoading').classList.add('hidden');
+          isGeneratingScript = false;
+          return;
+        }
+      }
 
       // Build ordered list of photo indices from the user's drag order
       const catEls = sortable.querySelectorAll('.category-group');
