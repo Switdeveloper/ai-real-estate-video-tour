@@ -1563,8 +1563,7 @@ Generate a professional video-generation prompt usable in Google Veo, Kling, Run
 
 INPUTS
 
-Property Description:
-${extras ? extras.replace(/\n/g, '\n') : 'Use the property details and video style provided by the user.'}
+Property Description:${extras || '\nUse the property details and video style provided by the user.'}
 
 Agent Avatar:
 ${agentAvatarInfo}
