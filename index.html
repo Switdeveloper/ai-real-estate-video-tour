@@ -525,6 +525,7 @@
     let isAnalyzing = false;
     let isGeneratingScript = false;
     let generatedClips = [];
+    let generatingCategories = new Set();
 
     // ── DOM refs ──
     const $ = id => document.getElementById(id);
@@ -886,6 +887,7 @@
       uploadedPhotos = [];
       analysisResults = [];
       generatedClips = [];
+      generatingCategories = new Set();
       window._categoryGroups = {};
       agentPhotoData = null;
       $('agentName').value = '';
@@ -1119,7 +1121,7 @@
           ${cats.map((cat, ci) => {
             const photos = groups[cat].map(pi => uploadedPhotos[pi]).filter(Boolean);
             const borderColor = catColors[cat] || 'border-gray-300 bg-gray-50';
-            return `
+              return `
               <div class="category-group border-2 rounded-xl ${borderColor} overflow-hidden" data-category="${cat}">
                 <div class="flex items-center gap-2 px-4 py-2.5">
                   <div class="flex flex-col gap-0.5">
@@ -1129,7 +1131,10 @@
                   <span class="text-xs font-bold uppercase text-gray-600 min-w-[100px]">${cat}</span>
                   <span class="text-[10px] text-gray-400">${photos.length} photo${photos.length > 1 ? 's' : ''}</span>
                   <div class="flex-1"></div>
-                  <span class="text-[10px] text-gray-400 order-num">#${ci + 1}</span>
+                  <button class="scene-generate-btn text-[10px] font-semibold px-2.5 py-1 rounded-lg transition flex items-center gap-1 ${generatingCategories.has(cat) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'}" data-category="${cat}">
+                    ${generatingCategories.has(cat) ? '<i class="fas fa-spinner fa-spin"></i>' : '<i class="fas fa-play"></i>'} Generate
+                  </button>
+                  <span class="text-[10px] text-gray-400 order-num ml-1">#${ci + 1}</span>
                 </div>
                 <div class="flex gap-1.5 px-4 pb-3 overflow-x-auto scene-photos-${cat.replace(/\s+/g, '_')}">
                   ${photos.map((p, pi) => `
@@ -1187,6 +1192,15 @@
           const els = [...groups.querySelectorAll('.category-group')];
           if (ci < els.length - 1) groups.insertBefore(els[ci + 1], els[ci]);
           updateCategorySceneOrder();
+        });
+      });
+
+      // Per-category generate button
+      container.querySelectorAll('.scene-generate-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const cat = this.dataset.category;
+          if (generatingCategories.has(cat)) return;
+          generateClipsForCategory(cat);
         });
       });
 
@@ -1436,6 +1450,134 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
       $('generateScriptBtn').disabled = false;
       $('generateScriptBtn').innerHTML = '<i class="fas fa-feather-alt"></i> Re-generate Clips';
       $('orderLoading').classList.add('hidden');
+    }
+
+    async function generateClipsForCategory(cat) {
+      const key = getApiKey();
+      if (!key) {
+        showToast('Please set your API key in Settings first.');
+        openSettings();
+        return;
+      }
+      const group = window._categoryGroups[cat];
+      if (!group || !group.length) {
+        showToast('No photos in this category.');
+        return;
+      }
+
+      generatingCategories.add(cat);
+      renderCategoryOrder();
+
+      const btn = document.querySelector(`.scene-generate-btn[data-category="${cat}"]`);
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      }
+
+      try {
+        const orderedPhotoIndices = group;
+        const orderedDescs = orderedPhotoIndices.map(pi => {
+          const r = analysisResults.find(a => a.photoIndex === pi);
+          return `Photo [${r ? r.category : 'Other'}]: ${r ? (r.tag || r.raw || '') : ''}`;
+        }).join('\n\n');
+        const propDetails = $('propertyDetails').value.trim();
+        const vidPrompt = $('videoPrompt').value.trim();
+        const agentName = ($('agentName').value || 'your agent').trim();
+
+        let extras = '';
+        if (propDetails) extras += `\nProperty Information:\n${propDetails}\n`;
+        if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
+
+        const model = getModelValue('script');
+        const prompt = `You are a professional real estate video scriptwriter. Create a cinematic video tour script for the "${cat}" section of a property walkthrough.
+
+In every generated clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide.${extras}
+
+There are ${orderedPhotoIndices.length} photos for this section. Each photo will be a 9-10 second video clip.
+Return a JSON array of ${orderedPhotoIndices.length} clip objects. No markdown, no code fences, pure JSON only.
+
+For each clip, output an object with exactly these fields:
+{
+  "category": "${cat}",
+  "voiceover": "a 1-2 sentence voiceover line referencing the agent ${agentName} naturally",
+  "visual": "camera direction / visual style including the agent's presence",
+  "audio": "music/sound cue"
+}
+
+Photos for this section:
+${orderedDescs}
+
+Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
+
+        const res = await fetch(API_BASE + '/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + key,
+            'HTTP-Referer': 'https://switdeveloper.github.io/ai-real-estate-video-tour/'
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              { role: 'system', content: 'You output JSON only. No markdown, no explanations.' },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 4096,
+            temperature: 0.4
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          let raw = data.choices?.[0]?.message?.content || '[]';
+          raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+          let parsed;
+          try {
+            parsed = JSON.parse(raw);
+          } catch(e) {
+            const arrMatch = raw.match(/\[[\s\S]*\]/);
+            if (arrMatch) {
+              try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
+            } else {
+              parsed = null;
+            }
+          }
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const newClips = parsed.map((c, i) => ({
+              ...c,
+              photoIndex: orderedPhotoIndices[i] !== undefined ? orderedPhotoIndices[i] : i,
+              category: cat,
+              voiceover: c.voiceover || 'Welcome to this beautiful property.',
+              visual: c.visual || 'Static shot',
+              audio: c.audio || 'Background music'
+            }));
+            // Insert at the correct position based on this category's order
+            const sortable = $('sortableCategories');
+            const catEls = sortable ? [...sortable.querySelectorAll('.category-group')] : [];
+            const catIndex = catEls.findIndex(el => el.dataset.category === cat);
+            let insertIdx = 0;
+            for (let j = 0; j < catIndex; j++) {
+              const prevCat = catEls[j].dataset.category;
+              const prevGroup = window._categoryGroups[prevCat] || [];
+              insertIdx += prevGroup.length;
+            }
+            generatedClips.splice(insertIdx, 0, ...newClips);
+            renderClipScripts();
+            showToast('Generated ' + newClips.length + ' clip(s) for ' + cat);
+            saveMemory();
+          } else {
+            showToast('AI returned invalid response for ' + cat);
+          }
+        } else {
+          const err = await res.text();
+          try { const j = JSON.parse(err); showToast('Error: ' + (j.error?.message || j.error)); } catch(e) { showToast('API Error'); }
+        }
+      } catch (err) {
+        showToast('Network error: ' + err.message);
+      }
+
+      generatingCategories.delete(cat);
+      renderCategoryOrder();
     }
 
     function renderClipScripts() {
