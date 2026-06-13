@@ -1309,13 +1309,17 @@
         }
       }
 
-      // Build ordered list of photo indices from the user's drag order
+      // Build ordered list of categories with all their photos combined
       const catEls = sortable.querySelectorAll('.category-group');
-      const orderedPhotoIndices = [];
+      const orderedCatData = [];
       catEls.forEach(el => {
         const cat = el.dataset.category;
         const group = window._categoryGroups[cat] || [];
-        group.forEach(pi => orderedPhotoIndices.push(pi));
+        const descs = group.map(pi => {
+          const r = analysisResults.find(a => a.photoIndex === pi);
+          return `Photo [${r ? r.category : 'Other'}]: ${r ? (r.tag || r.raw || '') : ''}`;
+        }).join('\n');
+        orderedCatData.push({ category: cat, photoIndices: group, descriptions: descs });
       });
 
       isGeneratingScript = true;
@@ -1326,11 +1330,6 @@
       $('step3Next').disabled = true;
 
       const model = getModelValue('script');
-      // Build room descriptions in the user's order
-      const orderedDescs = orderedPhotoIndices.map(pi => {
-        const r = analysisResults.find(a => a.photoIndex === pi);
-        return `Photo [${r ? r.category : 'Other'}]: ${r ? (r.tag || r.raw || '') : ''}`;
-      }).join('\n\n');
       const propDetails = $('propertyDetails').value.trim();
       const vidPrompt = $('videoPrompt').value.trim();
 
@@ -1339,7 +1338,10 @@
       if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
 
       // Build category sequence string for the prompt
-      const catSequence = catEls.map((el, i) => `Clip ${i + 1}: ${el.dataset.category}`).join('\n');
+      const catSequence = orderedCatData.map((d, i) => `Clip ${i + 1}: ${d.category}`).join('\n');
+      const catDescriptions = orderedCatData.map(d =>
+        `--- ${d.category} (${d.photoIndices.length} photos) ---\n${d.descriptions}`
+      ).join('\n\n');
 
       const agentName = ($('agentName').value || 'your agent').trim();
       const agentInfo = agentPhotoData
@@ -1350,30 +1352,31 @@
 
 First, the images are categorized into sections such as exterior, kitchen, bedroom, etc. Each clip must follow the order chosen below — starting with the outside, then moving inside room by room.
 
-As each clip is generated, ensure the script describes the relevant space, highlighting key selling points provided earlier. Proceed step by step, with each clip script flowing naturally into the next, until the full walkthrough is complete.
+Each section may contain multiple photos. Use ALL photos within a section together to create a single cinematic clip that weaves through those images.
+
+As each clip is generated, ensure the script describes the relevant space as a whole, highlighting key selling points provided earlier. Proceed step by step, with each clip script flowing naturally into the next, until the full walkthrough is complete.
 
 In every generated clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide — so the viewer feels personally engaged. Ensure the agent's presence ties naturally into each section being described, enhancing the authenticity of the virtual tour.${extras}
 
 ${agentInfo}
 
-VIDEO CLIP SEQUENCE (IN THIS EXACT ORDER):
+VIDEO CLIP SEQUENCE (IN THIS EXACT ORDER) — 1 clip per section, combining all photos within that section:
 ${catSequence}
 
-There are ${orderedPhotoIndices.length} photos. Each photo will be a 9-10 second video clip.
-Return a JSON array of ${orderedPhotoIndices.length} clip objects. No markdown, no code fences, pure JSON only.
+There are ${orderedCatData.length} sections total. Return a JSON array of exactly ${orderedCatData.length} clip objects. No markdown, no code fences, pure JSON only.
 
 For each clip, output an object with exactly these fields:
 {
-  "category": "the category name from the sequence above",
-  "voiceover": "a 1-2 sentence voiceover line for this clip in quotes — must reference the agent ${agentName} naturally (e.g. '${agentName} welcomes you to...', 'As ${agentName} moves into the kitchen...')",
-  "visual": "camera direction / visual style including the agent's presence (e.g. slow pan following ${agentName} as they gesture toward the island)",
-  "audio": "music/sound cue (e.g. warm piano fades in, upbeat modern beat)"
+  "category": "the category/section name from the sequence above",
+  "voiceover": "a 1-2 sentence voiceover line describing the entire space, referencing the agent ${agentName} naturally",
+  "visual": "camera direction / visual style transitioning between all photos in this section, including the agent's presence",
+  "audio": "music/sound cue"
 }
 
-Photos in sequence order:
-${orderedDescs}
+Photos organized by section in sequence order:
+${catDescriptions}
 
-Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
+Output a JSON array of exactly ${orderedCatData.length} objects. ONLY valid JSON.`;
 
       try {
         const res = await fetch(API_BASE + '/chat/completions', {
@@ -1410,30 +1413,32 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
             }
           }
           if (Array.isArray(parsed) && parsed.length > 0) {
-            generatedClips = parsed.map((c, i) => ({
-              ...c,
-              photoIndex: orderedPhotoIndices[i] !== undefined ? orderedPhotoIndices[i] : i,
-              category: c.category || 'Other',
-              voiceover: c.voiceover || 'Welcome to this beautiful property.',
-              visual: c.visual || 'Static shot',
-              audio: c.audio || 'Background music'
-            }));
+            generatedClips = parsed.map((c, i) => {
+              const catData = orderedCatData[i] || {};
+              return {
+                ...c,
+                photoIndex: catData.photoIndices ? catData.photoIndices[0] : i,
+                photoIndices: catData.photoIndices || [i],
+                category: c.category || catData.category || 'Other',
+                voiceover: c.voiceover || 'Welcome to this beautiful property.',
+                visual: c.visual || 'Static shot',
+                audio: c.audio || 'Background music'
+              };
+            });
             renderClipScripts();
             $('step3Next').disabled = false;
             showToast('Generated ' + generatedClips.length + ' clips!');
             saveMemory();
           } else {
             // Fallback
-            generatedClips = orderedPhotoIndices.map((pi, i) => {
-              const r = analysisResults.find(a => a.photoIndex === pi);
-              return {
-                photoIndex: pi,
-                category: r ? r.category : 'Other',
-                voiceover: 'Welcome to this beautiful ' + (r ? (r.tag || 'property') : 'property') + '.',
-                visual: 'Smooth pan across the room',
-                audio: 'Soft ambient music'
-              };
-            });
+            generatedClips = orderedCatData.map((d, i) => ({
+              photoIndex: d.photoIndices[0],
+              photoIndices: d.photoIndices,
+              category: d.category,
+              voiceover: 'Welcome to the ' + d.category.toLowerCase() + ' of this beautiful property.',
+              visual: 'Smooth transition through the ' + d.category.toLowerCase(),
+              audio: 'Soft ambient music'
+            }));
             renderClipScripts();
             $('step3Next').disabled = false;
             showToast('Used fallback clips (AI did not return valid JSON)');
@@ -1489,25 +1494,26 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
         if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
 
         const model = getModelValue('script');
-        const prompt = `You are a professional real estate video scriptwriter. Create a cinematic video tour script for the "${cat}" section of a property walkthrough.
+        const prompt = `You are a professional real estate video scriptwriter. Create one cinematic video clip script for the "${cat}" section of a property walkthrough.
 
-In every generated clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide.${extras}
+In every clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide.${extras}
 
-There are ${orderedPhotoIndices.length} photos for this section. Each photo will be a 9-10 second video clip.
-Return a JSON array of ${orderedPhotoIndices.length} clip objects. No markdown, no code fences, pure JSON only.
+There are ${orderedPhotoIndices.length} photos for this section. Use ALL of them together to create a single 9-10 second video clip that weaves through these images.
 
-For each clip, output an object with exactly these fields:
+Return a JSON array containing exactly 1 clip object. No markdown, no code fences, pure JSON only.
+
+The clip object must have these fields:
 {
   "category": "${cat}",
-  "voiceover": "a 1-2 sentence voiceover line referencing the agent ${agentName} naturally",
-  "visual": "camera direction / visual style including the agent's presence",
+  "voiceover": "a 1-2 sentence voiceover line referencing the agent ${agentName} naturally, describing the entire space across all photos",
+  "visual": "camera direction / visual style that transitions between all photos, including the agent's presence",
   "audio": "music/sound cue"
 }
 
-Photos for this section:
+All photos for this section (combine into one clip):
 ${orderedDescs}
 
-Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
+Output a JSON array with exactly 1 object. ONLY valid JSON.`;
 
         const res = await fetch(API_BASE + '/chat/completions', {
           method: 'POST',
@@ -1545,22 +1551,27 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
           if (Array.isArray(parsed) && parsed.length > 0) {
             const newClips = parsed.map((c, i) => ({
               ...c,
-              photoIndex: orderedPhotoIndices[i] !== undefined ? orderedPhotoIndices[i] : i,
+              photoIndex: orderedPhotoIndices[0],
+              photoIndices: orderedPhotoIndices,
               category: cat,
               voiceover: c.voiceover || 'Welcome to this beautiful property.',
               visual: c.visual || 'Static shot',
               audio: c.audio || 'Background music'
             }));
-            // Insert at the correct position based on this category's order
+            // Insert at the correct position based on this category's order (1 clip per category)
             const sortable = $('sortableCategories');
             const catEls = sortable ? [...sortable.querySelectorAll('.category-group')] : [];
             const catIndex = catEls.findIndex(el => el.dataset.category === cat);
             let insertIdx = 0;
             for (let j = 0; j < catIndex; j++) {
               const prevCat = catEls[j].dataset.category;
-              const prevGroup = window._categoryGroups[prevCat] || [];
-              insertIdx += prevGroup.length;
+              // Count existing generated clips for previous categories (1 per category)
+              const prevClips = generatedClips.filter(c => c.category === prevCat);
+              if (!prevClips.length) insertIdx += 1;
+              else insertIdx += prevClips.length;
             }
+            // Remove any existing clips for this category before inserting new ones
+            generatedClips = generatedClips.filter(c => c.category !== cat);
             generatedClips.splice(insertIdx, 0, ...newClips);
             renderClipScripts();
             showToast('Generated ' + newClips.length + ' clip(s) for ' + cat);
@@ -1588,6 +1599,7 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
 
       container.innerHTML = generatedClips.map((clip, i) => {
         const photo = uploadedPhotos[clip.photoIndex];
+        const photosCount = clip.photoIndices ? clip.photoIndices.length : 1;
         const catColors = {
           'Exterior': 'bg-green-100 text-green-700', 'Living Room': 'bg-blue-100 text-blue-700',
           'Kitchen': 'bg-orange-100 text-orange-700', 'Dining Room': 'bg-amber-100 text-amber-700',
@@ -1602,8 +1614,9 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
         return `
           <div class="clip-card" data-clip-index="${i}">
             <div class="flex flex-col sm:flex-row">
-              <div class="sm:w-32 flex-shrink-0">
+              <div class="sm:w-32 flex-shrink-0 relative">
                 <img src="${photo ? photo.dataUrl : ''}" class="w-full h-20 sm:h-full sm:w-32 object-cover" />
+                ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-medium">${photosCount} photos</span>` : ''}
               </div>
               <div class="p-3 sm:p-4 flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-2">
@@ -1671,10 +1684,14 @@ Output a JSON array of ${orderedPhotoIndices.length} objects. ONLY valid JSON.`;
       const duration = parseInt($('clipDuration').value) || 10;
       container.innerHTML = generatedClips.map((clip, i) => {
         const photo = uploadedPhotos[clip.photoIndex];
+        const photosCount = clip.photoIndices ? clip.photoIndices.length : 1;
         const clipDur = clip.duration || duration;
         return `
           <div class="clip-card flex items-center gap-4 p-3">
-            <img src="${photo ? photo.dataUrl : ''}" class="w-24 h-16 rounded-lg object-cover flex-shrink-0" />
+            <div class="relative flex-shrink-0">
+              <img src="${photo ? photo.dataUrl : ''}" class="w-24 h-16 rounded-lg object-cover" />
+              ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] px-1 py-0.5 rounded font-medium">${photosCount}</span>` : ''}
+            </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-0.5">
                 <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
