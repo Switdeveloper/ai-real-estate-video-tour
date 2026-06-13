@@ -646,27 +646,87 @@
           uploadedPhotos = state.uploadedPhotos;
           renderPhotos();
         }
+
+        let hasAnalysis = false;
         if (state.analysisResults && state.analysisResults.length) {
           analysisResults = state.analysisResults;
           window._categoryGroups = state.categoryGroups || {};
+          hasAnalysis = true;
         }
+
         if (state.generatedClips && state.generatedClips.length) {
           generatedClips = state.generatedClips;
         }
 
         if (state.currentStep && state.currentStep > 1) {
           const step = Math.min(state.currentStep, 5);
-          // Need to re-initialize step 2 & 3 content if we skip ahead
           setTimeout(() => {
-            if (step >= 2 && analysisResults.length) showAnalysisResults();
-            if (step >= 3 && Object.keys(window._categoryGroups).length) renderCategoryOrder();
-            if (step >= 4 && generatedClips.length) renderClips();
+            // Restore step 2 UI (analysis cards)
+            if (step >= 2 && hasAnalysis) {
+              renderSavedAnalysis();
+              updateCategoryOverview();
+              $('categoryOverview').classList.remove('hidden');
+              $('confirmCategories').classList.remove('hidden');
+            }
+            // Restore step 3 UI
+            if (step >= 3 && Object.keys(window._categoryGroups).length) {
+              renderCategoryOrder();
+              if (generatedClips.length > 0) renderClipScripts();
+            }
+            // Restore step 4 UI
+            if (step >= 4 && generatedClips.length > 0) {
+              renderClipList();
+            }
             goToStep(step);
-          }, 50);
+          }, 100);
         }
       } catch (e) {
         console.warn('Memory load failed:', e.message);
       }
+    }
+
+    function renderSavedAnalysis() {
+      const container = $('analysisResults');
+      const ALL_CATEGORIES = ['Exterior', 'Living Room', 'Kitchen', 'Dining Room', 'Bedroom', 'Bathroom', 'Office', 'Hallway', 'Staircase', 'Basement', 'Garage', 'Backyard', 'Pool', 'Balcony', 'Agent Photo', 'Detail Shot', 'Other'];
+      container.classList.remove('hidden');
+      container.innerHTML = '';
+      analysisResults.forEach((r, i) => {
+        const photo = uploadedPhotos[r.photoIndex];
+        if (!photo) return;
+        const div = document.createElement('div');
+        div.id = 'analysis-ph-' + i;
+        div.className = 'analysis-card';
+        div.innerHTML = `
+          <div class="flex flex-col sm:flex-row">
+            <div class="sm:w-40 flex-shrink-0">
+              <img src="${photo.dataUrl}" class="thumb sm:h-full sm:w-40 object-cover" />
+            </div>
+            <div class="p-4 flex-1">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold text-gray-500 uppercase">Photo ${i + 1}</span>
+                <span class="text-[10px] text-gray-400 italic analysis-ph-status-${i}">${r.category}</span>
+              </div>
+              <div class="mb-2">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Category</label>
+                <select class="analysis-cat-select w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" data-i="${i}">
+                  ${ALL_CATEGORIES.map(c => `<option value="${c}" ${c === r.category ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </div>
+              <div class="text-xs text-gray-500 analysis-ph-tag-${i}">${r.tag || ''}</div>
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+        // Wire up category change listener
+        const select = div.querySelector('.analysis-cat-select');
+        select.addEventListener('change', function() {
+          const idx = parseInt(this.dataset.i);
+          if (analysisResults[idx]) {
+            analysisResults[idx].category = this.value;
+            updateCategoryOverview();
+          }
+        });
+      });
     }
 
     // ── Step Navigation ──
