@@ -191,7 +191,7 @@
               <optgroup label="Free Models">
                 <option value="nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron 3 Ultra 550B (free)</option>
                 <option value="nex-agi/nex-n2-pro:free">Nex N2 Pro (free)</option>
-                <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">Nemotron Nano Omni 30B (free)</option>
+                <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" selected>Nemotron Nano Omni 30B (free)</option>
                 <option value="google/gemini-2.5-flash:free">Gemini 2.5 Flash (free)</option>
                 <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash Exp (free)</option>
                 <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B (free)</option>
@@ -580,19 +580,19 @@
         $('apiKey').value = key;
         $('apiKeyReminder').classList.add('hidden');
       }
+      const defaults = { script: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free' };
       const categories = ['vision', 'script', 'video'];
       categories.forEach(cat => {
         const stored = localStorage.getItem('or' + cat.charAt(0).toUpperCase() + cat.slice(1) + 'Model');
         const select = $(cat + 'Model');
         const custom = $(cat + 'ModelCustom');
-        if (stored) {
-          if ([...select.options].some(o => o.value === stored)) {
-            select.value = stored;
-          } else {
-            select.value = '__custom__';
-            custom.value = stored;
-            custom.classList.remove('hidden');
-          }
+        const val = stored || defaults[cat] || select.options[0]?.value;
+        if (val && [...select.options].some(o => o.value === val)) {
+          select.value = val;
+        } else if (stored) {
+          select.value = '__custom__';
+          custom.value = stored;
+          custom.classList.remove('hidden');
         }
       });
     }
