@@ -1148,6 +1148,9 @@
                   <span class="text-[10px] text-gray-400 order-num ml-1">#${ci + 1}</span>
                 </div>
                 <div class="flex gap-1.5 px-4 pb-3 overflow-x-auto scene-photos-${cat.replace(/\s+/g, '_')}">
+                  ${agentPhotoData ? `<div class="flex-shrink-0 relative">
+                    <img src="${agentPhotoData}" class="w-10 h-10 rounded-full object-cover border-2 border-pink-300 ring-1 ring-pink-100" title="Agent" />
+                  </div>` : ''}
                   ${photos.map((p, pi) => `
                     <div class="relative group flex-shrink-0">
                       <img src="${p.dataUrl}" class="w-14 h-10 rounded object-cover" />
@@ -1576,6 +1579,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
                 ...clip,
                 photoIndex: catData.photoIndices[0],
                 photoIndices: catData.photoIndices,
+                agentPhoto: agentPhotoData,
                 category: cat,
                 voiceover: clip.dialogue || clip.voiceover || 'Welcome to this beautiful property.',
                 visual: `Style: ${clip.videoStyle || 'Luxury cinematic'}. Camera: ${clip.cameraMovement || 'Static shot'}. Agent: ${clip.agentMovement || 'On screen'}`,
@@ -1595,6 +1599,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
               generatedClips.push({
                 photoIndex: catData.photoIndices[0],
                 photoIndices: catData.photoIndices,
+                agentPhoto: agentPhotoData,
                 category: cat,
                 voiceover: 'Welcome to the ' + cat.toLowerCase() + ' of this beautiful property.',
                 visual: `Cinematic ${cat.toLowerCase()} tour with agent on screen`,
@@ -1801,6 +1806,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
               ...c,
               photoIndex: orderedPhotoIndices[0],
               photoIndices: orderedPhotoIndices,
+              agentPhoto: agentPhotoData,
               category: cat,
               voiceover: c.dialogue || c.voiceover || 'Welcome to this beautiful property.',
               visual: `Style: ${c.videoStyle || 'Luxury cinematic'}. Camera: ${c.cameraMovement || 'Static shot'}. Agent: ${c.agentMovement || 'On screen'}`,
@@ -1872,9 +1878,14 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
             <!-- Summary View -->
             <div class="clip-summary p-3 sm:p-4">
               <div class="flex items-start gap-3">
-                <div class="w-20 h-14 sm:w-24 sm:h-16 flex-shrink-0 relative rounded-lg overflow-hidden">
-                  <img src="${photo ? photo.dataUrl : ''}" class="w-full h-full object-cover" />
-                  ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] px-1 py-0.5 rounded font-medium">${photosCount}</span>` : ''}
+                <div class="flex gap-1.5 items-start">
+                  <div class="w-20 h-14 sm:w-24 sm:h-16 flex-shrink-0 relative rounded-lg overflow-hidden">
+                    <img src="${photo ? photo.dataUrl : ''}" class="w-full h-full object-cover" />
+                    ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] px-1 py-0.5 rounded font-medium">${photosCount}</span>` : ''}
+                  </div>
+                  ${clip.agentPhoto ? `<div class="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 relative rounded-full overflow-hidden border-2 border-pink-300 ring-1 ring-pink-100">
+                    <img src="${clip.agentPhoto}" class="w-full h-full object-cover" title="Agent" />
+                  </div>` : ''}
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-1 flex-wrap">
@@ -1995,6 +2006,9 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
               <img src="${photo ? photo.dataUrl : ''}" class="w-24 h-16 rounded-lg object-cover" />
               ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] px-1 py-0.5 rounded font-medium">${photosCount}</span>` : ''}
             </div>
+            ${clip.agentPhoto ? `<div class="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-full overflow-hidden border-2 border-pink-300 ring-1 ring-pink-100">
+              <img src="${clip.agentPhoto}" class="w-full h-full object-cover" title="Agent" />
+            </div>` : ''}
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-0.5">
                 <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
