@@ -1087,7 +1087,7 @@
         if (!groups[c]) groups[c] = [];
         groups[c].push(r.photoIndex);
       });
-      window._categoryGroups = groups;
+      window._categoryGroups = ensureBackyardFirst(groups);
       goToStep(3);
       renderCategoryOrder();
       saveMemory();
@@ -1096,7 +1096,7 @@
     // ── Step 3: Category Order & Clip Generation ──
     function renderCategoryOrder() {
       const container = $('categoryOrderList');
-      const groups = window._categoryGroups || {};
+      const groups = ensureBackyardFirst(window._categoryGroups || {});
       const cats = Object.keys(groups);
 
       if (!cats.length) {
@@ -1294,6 +1294,15 @@
       saveMemory();
     }
 
+    function ensureBackyardFirst(groups) {
+      const keys = Object.keys(groups);
+      if (keys.length < 2 || !groups['Backyard'] || keys[0] === 'Backyard') return groups;
+      const reordered = {};
+      reordered['Backyard'] = groups['Backyard'];
+      keys.forEach(k => { if (k !== 'Backyard') reordered[k] = groups[k]; });
+      return reordered;
+    }
+
     function getDialogueRules() {
       const mode = ($('dialogueMode') || {}).value || 'walkthrough';
       const baseRules = `
@@ -1440,7 +1449,13 @@ Short, punchy, energetic dialogue for TikTok/Instagram style reels. Fast-paced, 
 
         // Build context from previous clip
         let prevClipContext = '';
-        if (ci > 0) {
+        const isFirstClip = ci === 0;
+        if (isFirstClip) {
+          prevClipContext = `
+
+CLIP POSITION RULE — FIRST CLIP (Intro)
+This is the INTRO / establishing clip. Introduce the property and the agent. Welcome language IS allowed here. Set the scene for the tour.`;
+        } else {
           const prevClip = generatedClips[ci - 1];
           if (prevClip) {
             prevClipContext = `
@@ -1454,6 +1469,9 @@ Title: ${prevClip.title || ''}
 Scene Purpose: ${prevClip.scenePurpose || ''}
 Dialogue: ${prevClip.dialogue ? prevClip.dialogue.substring(0, 200) : ''}
 Continue Scene: ${prevClip.continueScene || ''}
+
+CLIP POSITION RULE — NOT the intro clip
+Do NOT use welcome phrases or re-introduce the property. Continue the walkthrough naturally from the previous scene.
 
 Continuity Rules:
 - The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip.
@@ -1657,7 +1675,12 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
         const catEls = sortable ? [...sortable.querySelectorAll('.category-group')] : [];
         const curIdx = catEls.findIndex(el => el.dataset.category === cat);
         let prevClipContext = '';
-        if (curIdx > 0) {
+        if (curIdx === 0) {
+          prevClipContext = `
+
+CLIP POSITION RULE — FIRST CLIP (Intro)
+This is the INTRO / establishing clip. Introduce the property and the agent. Welcome language IS allowed here. Set the scene for the tour.`;
+        } else if (curIdx > 0) {
           const prevCat = catEls[curIdx - 1].dataset.category;
           const prevClip = generatedClips.find(c => c.category === prevCat);
           if (prevClip) {
@@ -1672,6 +1695,9 @@ Title: ${prevClip.title || ''}
 Scene Purpose: ${prevClip.scenePurpose || ''}
 Dialogue: ${prevClip.dialogue ? prevClip.dialogue.substring(0, 200) : ''}
 Continue Scene: ${prevClip.continueScene || ''}
+
+CLIP POSITION RULE — NOT the intro clip
+Do NOT use welcome phrases or re-introduce the property. Continue the walkthrough naturally from the previous scene.
 
 Continuity Rules:
 - The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip.
