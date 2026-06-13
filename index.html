@@ -1306,6 +1306,56 @@
       return reordered;
     }
 
+    function parseStructuredClip(text, cat) {
+      const clip = {
+        category: cat,
+        title: '',
+        scenePurpose: '',
+        dialogue: '',
+        cameraMovement: '',
+        agentMovement: '',
+        videoStyle: '',
+        timeline: '',
+        negativePrompt: '',
+        continueScene: '',
+        criticalImageInstructions: '',
+        fullText: text
+      };
+      const header = text.match(/SCENE\s+\d+\s*[–-]\s*(.*?)\s*\((\d+)\s*SECONDS\)/i);
+      if (header) clip.title = header[1].trim();
+      if (header) clip._duration = parseInt(header[2]);
+      const sections = text.split(/⸻/).map(s => s.trim()).filter(Boolean);
+      let currentSection = '';
+      for (const s of sections) {
+        const lines = s.split('\n').map(l => l.trim());
+        const firstLine = lines[0] || '';
+        if (/^VIDEO\s+FLOW/i.test(firstLine)) { currentSection = 'flow'; clip.timeline = s; continue; }
+        if (/^CAMERA/i.test(firstLine) && lines.length < 4) { currentSection = 'camera'; clip.cameraMovement = s; continue; }
+        if (/^QUALITY/i.test(firstLine)) { currentSection = 'quality'; clip.videoStyle = s; continue; }
+        if (/^NEGATIVE\s+PROMPT/i.test(firstLine)) { currentSection = 'negative'; clip.negativePrompt = s; continue; }
+        if (/^FINAL\s+REQUIREMENT/i.test(firstLine)) { currentSection = 'final'; clip.scenePurpose = s; continue; }
+        if (/^FINAL/i.test(firstLine) && /REQUIREMENT/i.test(s)) { currentSection = 'final'; clip.scenePurpose = s; continue; }
+        if (currentSection === 'flow') {
+          clip.timeline = s;
+          const diaLines = s.split('\n').filter(l => /^Dialogue/i.test(l.trim()));
+          if (diaLines.length) clip.dialogue = diaLines.map(l => l.replace(/^Dialogue[:\s]*"?/i, '').replace(/"$/, '').trim()).join(' ');
+        }
+        if (currentSection === 'camera') clip.cameraMovement = (clip.cameraMovement || '') + '\n' + s;
+        if (currentSection === 'quality') clip.videoStyle = (clip.videoStyle || '') + '\n' + s;
+        if (currentSection === 'negative') clip.negativePrompt = (clip.negativePrompt || '') + '\n' + s;
+        if (currentSection === 'final') clip.scenePurpose = (clip.scenePurpose || '') + '\n' + s;
+      }
+      if (!clip.scenePurpose) clip.scenePurpose = clip.timeline || clip.title || '';
+      if (!clip.dialogue) clip.dialogue = clip.scenePurpose || '';
+      clip.scenePurpose = clip.scenePurpose.replace(/^FINAL REQUIREMENT\s*/i, '').trim();
+      clip.negativePrompt = clip.negativePrompt.replace(/^NEGATIVE PROMPT\s*/i, '').trim();
+      clip.videoStyle = clip.videoStyle.replace(/^QUALITY\s*/i, '').trim();
+      clip.cameraMovement = clip.cameraMovement.replace(/^CAMERA\s*/i, '').trim();
+      clip.timeline = clip.timeline.replace(/^VIDEO FLOW\s*/i, '').trim();
+      clip.continueScene = (header ? clip.title + ' transitions to next scene' : 'Transitions to next scene');
+      return clip;
+    }
+
     function getDialogueRules() {
       const mode = ($('dialogueMode') || {}).value || 'walkthrough';
       const baseRules = `
@@ -1520,24 +1570,85 @@ ${getDialogueRules()}
 
 ------------------------------------------------
 
-OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
+OUTPUT EXACTLY THIS STRUCTURED FORMAT — no markdown, no code fences, no JSON:
 
-{
-  "category": "${cat}",
-  "title": "a short cinematic title for this clip",
-  "scenePurpose": "what this clip achieves in the tour",
-  "referenceImages": "list the uploaded scene images AND the agent reference photo — ONLY these",
-  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images and agent photo. Do not invent anything. Agent face/hair/clothing must match the agent reference photo exactly.",
-  "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
-  "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
-  "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
-  "dialogue": "natural realtor conversation following the dialogue rules above — conversational, friendly, authentic. Must reference visible features and sound like a real in-person walkthrough.",
-  "timeline": "0-9 second timeline of camera, agent, and visuals",
-  "negativePrompt": "No invented rooms or architecture. No new furniture. No imaginary landscaping. No changes to the property.",
-  "continueScene": "visual and audio transition leading into the next room or section"
-}
+SCENE ${ci + 1} – ${cat.toUpperCase()} WALKTHROUGH (9 SECONDS)
 
-Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code fences.`;
+Use ONLY the uploaded realtor image as the exact identity reference.
+Use ONLY the uploaded ${cat.toLowerCase()} images as the location reference.
+The realtor must remain identical to the uploaded image:
+Same face
+Same hairstyle
+Same clothing
+Same body proportions
+Same age
+Same professional appearance
+The room must remain exactly identical to the uploaded images:
+[list key visual features visible in the uploaded photos]
+
+⸻
+
+VIDEO FLOW
+
+0–3 Seconds
+[Camera and realtor action description for first 3 seconds]
+Dialogue: "[natural dialogue covering 0-3s]"
+
+3–6 Seconds
+[Camera and realtor action description for 3-6 seconds]
+Dialogue: "[natural dialogue covering 3-6s]"
+
+6–9 Seconds
+[Camera and realtor action description for 6-9 seconds]
+Dialogue: "[natural dialogue covering 6-9s]"
+
+⸻
+
+CAMERA
+Smooth cinematic gimbal tracking
+Luxury real estate commercial style
+Slow professional movement
+Natural parallax motion
+Architectural showcase framing
+Smooth transitions
+Professional MLS-quality presentation
+
+⸻
+
+QUALITY
+Ultra realistic
+Photorealistic
+4K HDR
+Natural daylight
+Accurate room proportions
+Real-world materials
+Perfect lip sync
+Natural walking animation
+Professional realtor gestures
+Luxury real estate marketing quality
+
+⸻
+
+NEGATIVE PROMPT
+Do not alter the realtor's face
+Do not alter clothing
+Do not alter hairstyle
+Do not redesign the room
+Do not change furniture placement
+Do not change wall colors
+Do not change flooring
+No AI artifacts
+No CGI appearance
+No distorted hands
+No floating objects
+No camera shake
+No poor lip sync
+No unrealistic motion
+
+⸻
+
+FINAL REQUIREMENT
+The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, and the realtor must physically walk through the space while speaking naturally. Every statement must correspond to what is visible on screen, creating the feeling of a genuine luxury real estate walkthrough filmed by a professional agent inside the actual property.`;
 
         try {
           const res = await fetch(API_BASE + '/chat/completions', {
@@ -1550,7 +1661,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
             body: JSON.stringify({
               model: model,
               messages: [
-                { role: 'system', content: 'You output JSON only. No markdown, no explanations.' },
+                { role: 'system', content: 'You are a professional real estate video scriptwriter. Output the structured scene format exactly as specified. No markdown, no code fences, no JSON.' },
                 { role: 'user', content: prompt }
               ],
               max_tokens: 4096,
@@ -1560,38 +1671,26 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
 
           if (res.ok) {
             const data = await res.json();
-            let raw = data.choices?.[0]?.message?.content || '[]';
-            raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
-            let parsed;
-            try {
-              parsed = JSON.parse(raw);
-            } catch(e) {
-              const arrMatch = raw.match(/\[[\s\S]*\]/);
-              if (arrMatch) {
-                try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
-              } else {
-                parsed = null;
-              }
-            }
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const clip = parsed[0];
+            const raw = data.choices?.[0]?.message?.content || '';
+            const parsedObj = parseStructuredClip(raw, cat);
+            if (parsedObj) {
               generatedClips.push({
-                ...clip,
+                ...parsedObj,
                 photoIndex: catData.photoIndices[0],
                 photoIndices: catData.photoIndices,
                 agentPhoto: agentPhotoData,
                 category: cat,
-                voiceover: clip.dialogue || clip.voiceover || 'Welcome to this beautiful property.',
-                visual: `Style: ${clip.videoStyle || 'Luxury cinematic'}. Camera: ${clip.cameraMovement || 'Static shot'}. Agent: ${clip.agentMovement || 'On screen'}`,
-                audio: clip.audio || 'Cinematic luxury background music',
-                dialogue: clip.dialogue || '',
-                scenePurpose: clip.scenePurpose || '',
-                cameraMovement: clip.cameraMovement || '',
-                agentMovement: clip.agentMovement || '',
-                videoStyle: clip.videoStyle || '',
-                timeline: clip.timeline || '',
-                negativePrompt: clip.negativePrompt || '',
-                continueScene: clip.continueScene || ''
+                voiceover: parsedObj.dialogue || 'Welcome to this beautiful property.',
+                visual: `Style: ${parsedObj.videoStyle || 'Luxury cinematic'}. Camera: ${parsedObj.cameraMovement || 'Static shot'}. Agent: ${parsedObj.agentMovement || 'On screen'}`,
+                audio: 'Cinematic luxury background music',
+                dialogue: parsedObj.dialogue || '',
+                scenePurpose: parsedObj.scenePurpose || '',
+                cameraMovement: parsedObj.cameraMovement || '',
+                agentMovement: parsedObj.agentMovement || '',
+                videoStyle: parsedObj.videoStyle || '',
+                timeline: parsedObj.timeline || '',
+                negativePrompt: parsedObj.negativePrompt || '',
+                continueScene: parsedObj.continueScene || ''
               });
               renderClipScripts();
             } else {
@@ -1601,6 +1700,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
                 photoIndices: catData.photoIndices,
                 agentPhoto: agentPhotoData,
                 category: cat,
+                fullText: '',
                 voiceover: 'Welcome to the ' + cat.toLowerCase() + ' of this beautiful property.',
                 visual: `Cinematic ${cat.toLowerCase()} tour with agent on screen`,
                 audio: 'Cinematic luxury background music',
@@ -1749,24 +1849,85 @@ ${getDialogueRules()}
 
 ------------------------------------------------
 
-OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
+OUTPUT EXACTLY THIS STRUCTURED FORMAT — no markdown, no code fences, no JSON:
 
-{
-  "category": "${cat}",
-  "title": "a short cinematic title for this clip",
-  "scenePurpose": "what this clip achieves in the tour",
-  "referenceImages": "list the uploaded scene images AND the agent reference photo — ONLY these",
-  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images and agent photo. Do not invent anything. Agent face/hair/clothing must match the agent reference photo exactly.",
-  "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
-  "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
-  "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
-  "dialogue": "natural realtor conversation following the dialogue rules above — conversational, friendly, authentic. Must reference visible features and sound like a real in-person walkthrough.",
-  "timeline": "0-9 second timeline of camera, agent, and visuals",
-  "negativePrompt": "No invented rooms or architecture. No new furniture. No imaginary landscaping. No changes to the property.",
-  "continueScene": "visual and audio transition leading into the next room or section"
-}
+SCENE 1 – ${cat.toUpperCase()} WALKTHROUGH (9 SECONDS)
 
-Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code fences.`;
+Use ONLY the uploaded realtor image as the exact identity reference.
+Use ONLY the uploaded ${cat.toLowerCase()} images as the location reference.
+The realtor must remain identical to the uploaded image:
+Same face
+Same hairstyle
+Same clothing
+Same body proportions
+Same age
+Same professional appearance
+The room must remain exactly identical to the uploaded images:
+[list key visual features visible in the uploaded photos]
+
+⸻
+
+VIDEO FLOW
+
+0–3 Seconds
+[Camera and realtor action description for first 3 seconds]
+Dialogue: "[natural dialogue covering 0-3s]"
+
+3–6 Seconds
+[Camera and realtor action description for 3-6 seconds]
+Dialogue: "[natural dialogue covering 3-6s]"
+
+6–9 Seconds
+[Camera and realtor action description for 6-9 seconds]
+Dialogue: "[natural dialogue covering 6-9s]"
+
+⸻
+
+CAMERA
+Smooth cinematic gimbal tracking
+Luxury real estate commercial style
+Slow professional movement
+Natural parallax motion
+Architectural showcase framing
+Smooth transitions
+Professional MLS-quality presentation
+
+⸻
+
+QUALITY
+Ultra realistic
+Photorealistic
+4K HDR
+Natural daylight
+Accurate room proportions
+Real-world materials
+Perfect lip sync
+Natural walking animation
+Professional realtor gestures
+Luxury real estate marketing quality
+
+⸻
+
+NEGATIVE PROMPT
+Do not alter the realtor's face
+Do not alter clothing
+Do not alter hairstyle
+Do not redesign the room
+Do not change furniture placement
+Do not change wall colors
+Do not change flooring
+No AI artifacts
+No CGI appearance
+No distorted hands
+No floating objects
+No camera shake
+No poor lip sync
+No unrealistic motion
+
+⸻
+
+FINAL REQUIREMENT
+The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, and the realtor must physically walk through the space while speaking naturally. Every statement must correspond to what is visible on screen, creating the feeling of a genuine luxury real estate walkthrough filmed by a professional agent inside the actual property.`;
 
         const res = await fetch(API_BASE + '/chat/completions', {
           method: 'POST',
@@ -1778,7 +1939,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
           body: JSON.stringify({
             model: model,
             messages: [
-              { role: 'system', content: 'You output JSON only. No markdown, no explanations.' },
+              { role: 'system', content: 'You are a professional real estate video scriptwriter. Output the structured scene format exactly as specified. No markdown, no code fences, no JSON.' },
               { role: 'user', content: prompt }
             ],
             max_tokens: 4096,
@@ -1788,55 +1949,30 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
 
         if (res.ok) {
           const data = await res.json();
-          let raw = data.choices?.[0]?.message?.content || '[]';
-          raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
-          let parsed;
-          try {
-            parsed = JSON.parse(raw);
-          } catch(e) {
-            const arrMatch = raw.match(/\[[\s\S]*\]/);
-            if (arrMatch) {
-              try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
-            } else {
-              parsed = null;
-            }
-          }
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const newClips = parsed.map((c, i) => ({
-              ...c,
+          const raw = data.choices?.[0]?.message?.content || '';
+          const parsedObj = parseStructuredClip(raw, cat);
+          if (parsedObj) {
+            generatedClips = generatedClips.filter(c => c.category !== cat);
+            generatedClips.push({
+              ...parsedObj,
               photoIndex: orderedPhotoIndices[0],
               photoIndices: orderedPhotoIndices,
               agentPhoto: agentPhotoData,
               category: cat,
-              voiceover: c.dialogue || c.voiceover || 'Welcome to this beautiful property.',
-              visual: `Style: ${c.videoStyle || 'Luxury cinematic'}. Camera: ${c.cameraMovement || 'Static shot'}. Agent: ${c.agentMovement || 'On screen'}`,
-              audio: c.audio || 'Cinematic luxury background music',
-              dialogue: c.dialogue || '',
-              scenePurpose: c.scenePurpose || '',
-              cameraMovement: c.cameraMovement || '',
-              agentMovement: c.agentMovement || '',
-              videoStyle: c.videoStyle || '',
-              timeline: c.timeline || '',
-              negativePrompt: c.negativePrompt || '',
-              continueScene: c.continueScene || ''
-            }));
-            // Insert at the correct position based on this category's order (1 clip per category)
-            const sortable = $('sortableCategories');
-            const catEls = sortable ? [...sortable.querySelectorAll('.category-group')] : [];
-            const catIndex = catEls.findIndex(el => el.dataset.category === cat);
-            let insertIdx = 0;
-            for (let j = 0; j < catIndex; j++) {
-              const prevCat = catEls[j].dataset.category;
-              // Count existing generated clips for previous categories (1 per category)
-              const prevClips = generatedClips.filter(c => c.category === prevCat);
-              if (!prevClips.length) insertIdx += 1;
-              else insertIdx += prevClips.length;
-            }
-            // Remove any existing clips for this category before inserting new ones
-            generatedClips = generatedClips.filter(c => c.category !== cat);
-            generatedClips.splice(insertIdx, 0, ...newClips);
+              voiceover: parsedObj.dialogue || 'Welcome to this beautiful property.',
+              visual: `Style: ${parsedObj.videoStyle || 'Luxury cinematic'}. Camera: ${parsedObj.cameraMovement || 'Static shot'}. Agent: ${parsedObj.agentMovement || 'On screen'}`,
+              audio: 'Cinematic luxury background music',
+              dialogue: parsedObj.dialogue || '',
+              scenePurpose: parsedObj.scenePurpose || '',
+              cameraMovement: parsedObj.cameraMovement || '',
+              agentMovement: parsedObj.agentMovement || '',
+              videoStyle: parsedObj.videoStyle || '',
+              timeline: parsedObj.timeline || '',
+              negativePrompt: parsedObj.negativePrompt || '',
+              continueScene: parsedObj.continueScene || ''
+            });
             renderClipScripts();
-            showToast('Generated ' + newClips.length + ' clip(s) for ' + cat);
+            showToast('Generated clip for ' + cat);
             saveMemory();
           } else {
             showToast('AI returned invalid response for ' + cat);
@@ -1893,7 +2029,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
                     <span class="text-[11px] font-semibold text-gray-800 leading-none">${clip.title || clip.category}</span>
                     <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${catColor} leading-none">${clip.category}</span>
                   </div>
-                  <div class="text-xs text-gray-600 line-clamp-2 mb-1">${clip.scenePurpose || ''}</div>
+                  <div class="text-xs text-gray-600 line-clamp-2 mb-1">${clip.scenePurpose ? clip.scenePurpose.replace(/^FINAL REQUIREMENT\s*/i, '').substring(0, 120) : ''}</div>
                   ${clip.dialogue ? `<div class="text-xs text-gray-500 italic line-clamp-1">"${clip.dialogue.substring(0, 120)}${clip.dialogue.length > 120 ? '...' : ''}"</div>` : ''}
                   <div class="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
                     <span>${clip.cameraMovement ? clip.cameraMovement.substring(0, 40) : 'No camera info'}</span>
@@ -1907,40 +2043,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
             <!-- Extended View (hidden by default) -->
             <div class="clip-extended hidden border-t border-gray-100 px-3 sm:px-4 py-3 bg-gray-50/50">
               <div class="grid grid-cols-1 gap-2 text-xs">
-                <div>
-                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Scene Purpose</label>
-                  <div class="text-gray-700">${clip.scenePurpose || ''}</div>
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Dialogue</label>
-                  <div class="text-gray-700 whitespace-pre-wrap">${clip.dialogue || clip.voiceover || ''}</div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Video Style</label>
-                    <div class="text-gray-600">${clip.videoStyle || ''}</div>
-                  </div>
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Camera Movement</label>
-                    <div class="text-gray-600">${clip.cameraMovement || ''}</div>
-                  </div>
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Agent Movement</label>
-                    <div class="text-gray-600">${clip.agentMovement || ''}</div>
-                  </div>
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Timeline</label>
-                  <div class="text-gray-600 whitespace-pre-wrap">${clip.timeline || ''}</div>
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Negative Prompt</label>
-                  <div class="text-gray-500 italic">${clip.negativePrompt || ''}</div>
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Continue Scene</label>
-                  <div class="text-gray-600">${clip.continueScene || ''}</div>
-                </div>
+                <div class="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-gray-700 bg-white rounded-lg p-3 border border-gray-100 max-h-96 overflow-y-auto">${clip.fullText || clip.scenePurpose || clip.dialogue || ''}</div>
                 <div class="flex items-center gap-4 border-t border-gray-200 pt-2 mt-1">
                   <span class="text-[10px] text-gray-400"><strong>Reference:</strong> ${photosCount} photo${photosCount > 1 ? 's' : ''}</span>
                   <span class="text-[10px] text-gray-400"><strong>Duration:</strong> <input type="number" class="clip-duration w-12 border border-gray-200 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-primary/20" value="${clip.duration || 9}" min="5" max="15" data-i="${i}" /> sec</span>
@@ -2015,12 +2118,8 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
                 <span class="text-[10px] font-semibold text-gray-600">${clip.title || ''}</span>
                 <span class="text-[10px] text-brand-primary font-medium">${clip.category}</span>
               </div>
-              <div class="text-sm text-gray-700">${clip.dialogue || clip.voiceover || ''}</div>
-              <div class="text-xs text-gray-400 mt-0.5">${clipDur}s &middot; ${clip.cameraMovement || clip.visual || ''}</div>
-              <div class="text-[10px] text-gray-400 flex items-center gap-3 mt-1">
-                ${clip.videoStyle ? `<span>${clip.videoStyle}</span>` : ''}
-                ${clip.agentMovement ? `<span>Agent: ${clip.agentMovement}</span>` : ''}
-              </div>
+              <div class="text-sm text-gray-700 line-clamp-2">${clip.dialogue || clip.voiceover || clip.scenePurpose || ''}</div>
+              <div class="text-xs text-gray-400 mt-0.5">${clipDur}s</div>
             </div>
           </div>
         `;
