@@ -1500,12 +1500,14 @@ The agent must appear in this clip as a constant visual element on screen.
 
 Images:
 ${catData.descriptions}
+${agentPhotoData ? 'Agent Reference Photo (appears in every clip): Uploaded agent photo — keep face, hair, age, clothing, and professional appearance identical in every clip' : ''}
 
 ------------------------------------------------
 
 CRITICAL IMAGE RULES
 
 Use ONLY the uploaded images assigned to "${cat}".
+The agent reference photo above is the ONLY approved source for the agent's appearance.
 Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
 The property must remain identical to the uploaded images throughout the scene.
@@ -1521,8 +1523,8 @@ OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
   "category": "${cat}",
   "title": "a short cinematic title for this clip",
   "scenePurpose": "what this clip achieves in the tour",
-  "referenceImages": "list the uploaded images to use — ONLY these",
-  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images. Do not invent anything.",
+  "referenceImages": "list the uploaded scene images AND the agent reference photo — ONLY these",
+  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images and agent photo. Do not invent anything. Agent face/hair/clothing must match the agent reference photo exactly.",
   "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
   "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
   "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
@@ -1725,16 +1727,18 @@ The agent must appear in this clip as a constant visual element on screen.
 
 Images:
 ${orderedDescs}
+${agentPhotoData ? 'Agent Reference Photo (appears in every clip): Uploaded agent photo — keep face, hair, age, clothing, and professional appearance identical in every clip' : ''}
 
 ------------------------------------------------
 
 CRITICAL IMAGE RULES
 
 Use ONLY the uploaded images assigned to "${cat}".
+The agent reference photo above is the ONLY approved source for the agent's appearance.
 Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
 The property must remain identical to the uploaded images throughout the scene.
-The agent must remain identical to the uploaded reference image.${prevClipContext}
+The agent must remain identical to the uploaded reference photo.${prevClipContext}
 
 ${getDialogueRules()}
 
@@ -1746,8 +1750,8 @@ OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
   "category": "${cat}",
   "title": "a short cinematic title for this clip",
   "scenePurpose": "what this clip achieves in the tour",
-  "referenceImages": "list the uploaded images to use — ONLY these",
-  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images. Do not invent anything.",
+  "referenceImages": "list the uploaded scene images AND the agent reference photo — ONLY these",
+  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images and agent photo. Do not invent anything. Agent face/hair/clothing must match the agent reference photo exactly.",
   "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
   "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
   "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
