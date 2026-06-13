@@ -96,9 +96,9 @@
             <span class="text-white">AI Real Estate Video Tour</span>
           </div>
           <div class="mb-6">
-            <div class="translate-wrapper">
-              <i class="fas fa-globe text-gray-300 text-[10px]"></i>
-              <div id="google_translate_element"></div>
+            <div class="translate-wrapper" title="Translate site">
+              <i class="fas fa-globe text-gray-300 text-sm"></i>
+              <div id="google_translate_element" class="translate-select"></div>
             </div>
           </div>
         </div>
@@ -2217,12 +2217,12 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
   </script>
   <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
   <style>
-    .translate-wrapper { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 4px 10px 4px 8px; transition: all 0.2s; }
-    .translate-wrapper:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.3); }
-    .translate-wrapper .goog-te-gadget { font-size: 0 !important; font-family: inherit !important; color: transparent !important; line-height: 1 !important; }
-    .translate-wrapper .goog-te-gadget .goog-te-combo { font-size: 11px !important; font-family: inherit !important; border: none !important; border-radius: 6px !important; padding: 3px 6px 3px 4px !important; background: transparent !important; color: #e5e7eb !important; outline: none !important; cursor: pointer !important; min-width: 100px; font-weight: 500 !important; letter-spacing: 0.01em !important; }
-    .translate-wrapper .goog-te-gadget .goog-te-combo:hover { color: #fff !important; }
-    .translate-wrapper .goog-te-gadget .goog-te-combo option { background: #1f2937 !important; color: #e5e7eb !important; }
+    .translate-wrapper { position: relative; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+    .translate-wrapper:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.35); }
+    .translate-select { position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2; }
+    .translate-select .goog-te-gadget { font-size: 0 !important; height: 100% !important; }
+    .translate-select .goog-te-gadget .goog-te-combo { width: 100% !important; height: 100% !important; border: none !important; background: transparent !important; color: transparent !important; cursor: pointer !important; font-size: 16px !important; min-width: unset !important; padding: 0 !important; }
+    .translate-select .goog-te-gadget .goog-te-combo option { background: #1f2937 !important; color: #e5e7eb !important; font-size: 12px !important; }
     .goog-te-banner-frame.skiptranslate { display: none !important; }
     body { top: 0 !important; }
   </style>
