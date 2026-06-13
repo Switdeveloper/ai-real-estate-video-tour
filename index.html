@@ -89,10 +89,13 @@
     </div>
     <div class="max-w-7xl mx-auto px-4 relative z-10">
       <div class="max-w-3xl">
-        <div class="flex items-center text-[10px] text-gray-400 mb-6 uppercase tracking-wider">
-          <span class="hover:text-white cursor-pointer" onclick="window.location='index.html'">Home</span>
-          <span class="mx-2">/</span>
-          <span class="text-white">AI Real Estate Video Tour</span>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center text-[10px] text-gray-400 mb-6 uppercase tracking-wider">
+            <span class="hover:text-white cursor-pointer" onclick="window.location='index.html'">Home</span>
+            <span class="mx-2">/</span>
+            <span class="text-white">AI Real Estate Video Tour</span>
+          </div>
+          <div id="google_translate_element" class="mb-6"></div>
         </div>
         <div class="flex items-center text-xs tracking-wider text-brand-primary mb-6 uppercase">
           <div class="w-2 h-2 border border-brand-primary transform rotate-45 mr-3"></div>
@@ -2195,5 +2198,24 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
       document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
     });
   </script>
+
+  <!-- Google Translate -->
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: 'en,es,fr,de,it,pt,nl,zh-CN,ja,ko,ar,ru',
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+        autoDisplay: false
+      }, 'google_translate_element');
+    }
+  </script>
+  <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+  <style>
+    .goog-te-gadget { font-size: 10px !important; font-family: inherit !important; color: #9ca3af !important; }
+    .goog-te-gadget .goog-te-combo { font-size: 11px !important; border: 1px solid #d1d5db !important; border-radius: 8px !important; padding: 3px 8px !important; background: rgba(255,255,255,0.9) !important; color: #374151 !important; outline: none !important; }
+    .goog-te-banner-frame.skiptranslate { display: none !important; }
+    body { top: 0 !important; }
+  </style>
 </body>
 </html>
