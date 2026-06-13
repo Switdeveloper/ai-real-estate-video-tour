@@ -1169,7 +1169,20 @@
       // Build category sequence string for the prompt
       const catSequence = catEls.map((el, i) => `Clip ${i + 1}: ${el.dataset.category}`).join('\n');
 
-      const prompt = `You are a professional real estate video scriptwriter. Create a cinematic video tour script based on these room descriptions.${extras}
+      const agentName = ($('agentName').value || 'your agent').trim();
+      const agentInfo = agentPhotoData
+        ? `The salesperson/agent "${agentName}" has a photo/avatar available.`
+        : `The salesperson/agent is "${agentName}".`;
+
+      const prompt = `You are a professional real estate video scriptwriter. Using the agent avatar provided and the property walkthrough prompt, generate each video clip sequentially.
+
+First, the images are categorized into sections such as exterior, kitchen, bedroom, etc. Each clip must follow the order chosen below — starting with the outside, then moving inside room by room.
+
+As each clip is generated, ensure the script describes the relevant space, highlighting key selling points provided earlier. Proceed step by step, with each clip script flowing naturally into the next, until the full walkthrough is complete.
+
+In every generated clip, incorporate the agent "${agentName}" — whether narrating, walking through, or appearing as a virtual guide — so the viewer feels personally engaged. Ensure the agent's presence ties naturally into each section being described, enhancing the authenticity of the virtual tour.${extras}
+
+${agentInfo}
 
 VIDEO CLIP SEQUENCE (IN THIS EXACT ORDER):
 ${catSequence}
@@ -1180,8 +1193,8 @@ Return a JSON array of ${orderedPhotoIndices.length} clip objects. No markdown, 
 For each clip, output an object with exactly these fields:
 {
   "category": "the category name from the sequence above",
-  "voiceover": "a 1-2 sentence voiceover line for this clip in quotes",
-  "visual": "camera direction / visual style (e.g. slow pan left, smooth zoom in)",
+  "voiceover": "a 1-2 sentence voiceover line for this clip in quotes — must reference the agent ${agentName} naturally (e.g. '${agentName} welcomes you to...', 'As ${agentName} moves into the kitchen...')",
+  "visual": "camera direction / visual style including the agent's presence (e.g. slow pan following ${agentName} as they gesture toward the island)",
   "audio": "music/sound cue (e.g. warm piano fades in, upbeat modern beat)"
 }
 
