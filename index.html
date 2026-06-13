@@ -1776,7 +1776,7 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
                   </div>
                   <div>
                     <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Dialogue</label>
-                    <textarea class="clip-voiceover w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}">${clip.dialogue || clip.voiceover || ''}</textarea>
+                    <div class="text-gray-700 whitespace-pre-wrap">${clip.dialogue || clip.voiceover || ''}</div>
                   </div>
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
