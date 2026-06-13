@@ -1348,159 +1348,182 @@
         ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in every clip.`
         : `The agent is named "${agentName}".`;
 
-      const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIPS
+      // Generate clips sequentially, one category at a time, with previous clip as context
+      generatedClips = [];
+      $('orderLoading').querySelector('span').textContent = 'Generating clip 1 of ' + orderedCatData.length + '...';
+      renderClipScripts();
+      $('clipScriptsContainer').classList.add('hidden');
+
+      for (let ci = 0; ci < orderedCatData.length; ci++) {
+        const catData = orderedCatData[ci];
+        const cat = catData.category;
+        $('orderLoading').querySelector('span').textContent = `Generating clip ${ci + 1} of ${orderedCatData.length}: ${cat}...`;
+
+        // Build context from previous clip
+        let prevClipContext = '';
+        if (ci > 0) {
+          const prevClip = generatedClips[ci - 1];
+          if (prevClip) {
+            prevClipContext = `
+------------------------------------------------
+PREVIOUSLY GENERATED CLIP (for ${prevClip.category}) — use this to maintain visual consistency:
+
+Title: ${prevClip.title || ''}
+Scene Purpose: ${prevClip.scenePurpose || ''}
+Video Style: ${prevClip.videoStyle || ''}
+Camera Movement: ${prevClip.cameraMovement || ''}
+Agent Movement: ${prevClip.agentMovement || ''}
+Dialogue: ${prevClip.dialogue || ''}
+Timeline: ${prevClip.timeline || ''}
+Continue Scene: ${prevClip.continueScene || ''}
+
+The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to this previous clip. The transition from "${prevClip.category}" to "${cat}" must feel seamless.`;
+          }
+        }
+
+        const model = getModelValue('script');
+        const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIP
 
 OBJECTIVE
 
-Generate a complete AI video prompt for EACH clip category.
+Generate a complete AI video prompt for the "${cat}" section.
 
-Do NOT generate short summaries.
-Do NOT generate simple room descriptions.
-Generate professional video-generation prompts that can be used directly inside Google Veo, Google Flow, Kling, Runway, Sora, Hailuo, PixVerse, Pika, Luma, or similar tools.
+Do NOT generate a short summary.
+Do NOT generate a simple room description.
+Generate a professional video-generation prompt usable in Google Veo, Kling, Runway, Sora, or similar tools.
 
 ------------------------------------------------
 
 INPUTS
 
-1. Property Description
-Use all property information provided. Identify luxury features, selling points, renovations, exterior upgrades, kitchen upgrades, bedroom features, bathroom features, backyard features, and location advantages.${extras}
+Property Description:${extras || '\nUse the property details and video style provided by the user.'}
 
-2. Agent Avatar
+Agent Avatar:
 ${agentAvatarInfo}
-The agent must appear in EVERY generated clip as a constant visual element on screen.
+The agent must appear in this clip as a constant visual element on screen.
 
-3. Image Categories
-Use categories generated during analysis. Each section below represents one category.
-
-------------------------------------------------
-
-GENERATE ONE CLIP AT A TIME
-
-Generate clips sequentially in the order below.
-Do NOT generate all clips as one paragraph.
-Each clip must be individually generated with all required fields.
+Images:
+${catData.descriptions}
 
 ------------------------------------------------
 
-VIDEO CLIP SEQUENCE (IN THIS EXACT ORDER) — 1 clip per section, combining all photos within that section:
-${catSequence}
+CRITICAL IMAGE RULES
+
+Use ONLY the uploaded images assigned to "${cat}".
+Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
+Everything must come from the uploaded images.
+The property must remain identical to the uploaded images throughout the scene.
+The agent must remain identical to the uploaded reference image.${prevClipContext}
 
 ------------------------------------------------
 
-FOR EACH CLIP GENERATE THESE FIELDS:
+OUTPUT A JSON ARRAY WITH EXACTLY 1 OBJECT USE THESE FIELDS:
 
 {
-  "category": "the category/section name",
+  "category": "${cat}",
   "title": "a short cinematic title for this clip",
   "scenePurpose": "what this clip achieves in the tour",
-  "referenceImages": "list the uploaded images assigned to this category — use ONLY these",
-  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images assigned to this category. Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features. Everything must come from uploaded images.",
+  "referenceImages": "list the uploaded images to use — ONLY these",
+  "criticalImageInstructions": "CRITICAL: Use ONLY the uploaded images. Do not invent anything.",
   "videoStyle": "Luxury real estate marketing. Photorealistic. 4K HDR. Professional brokerage advertisement. Natural motion. Cinematic camera movement.",
-  "cameraMovement": "realistic camera motion — drone movement, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot. Motion must match the scene.",
-  "agentMovement": "how the agent moves through this scene — must keep the agent's face, hair, age, clothing, body proportions identical to the uploaded reference image.",
-  "dialogue": "a 9-second voiceover that sounds like a luxury realtor. Promote the property, highlight actual visible features from the images. Never discuss features not shown.",
-  "timeline": "a 0-9 second timeline breaking down camera, agent movement, and visuals",
-  "negativePrompt": "No invented rooms. No AI-generated architecture. No new furniture. No imaginary landscaping. No changes to the property. Do not generate anything not visible in the uploaded images.",
-  "continueScene": "visual and audio transition leading directly into the next clip. For the final clip, end with a closing shot and fade-out."
+  "cameraMovement": "realistic motion — drone, gimbal walk-through, slow dolly, push-in, pull-back, orbit, or reveal shot",
+  "agentMovement": "how the agent moves — must keep face, hair, age, clothing identical to reference",
+  "dialogue": "a 9-second luxury realtor voiceover. Promote the property. Highlight actual visible features. Never discuss features not shown.",
+  "timeline": "0-9 second timeline of camera, agent, and visuals",
+  "negativePrompt": "No invented rooms or architecture. No new furniture. No imaginary landscaping. No changes to the property.",
+  "continueScene": "visual and audio transition leading into the next room or section"
 }
 
-------------------------------------------------
+Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code fences.`;
 
-Photos organized by section in sequence order:
-${catDescriptions}
+        try {
+          const res = await fetch(API_BASE + '/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + key,
+              'HTTP-Referer': 'https://switdeveloper.github.io/ai-real-estate-video-tour/'
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: [
+                { role: 'system', content: 'You output JSON only. No markdown, no explanations.' },
+                { role: 'user', content: prompt }
+              ],
+              max_tokens: 4096,
+              temperature: 0.4
+            })
+          });
 
-------------------------------------------------
-
-Output a JSON array of exactly ${orderedCatData.length} objects following the format above. ONLY valid JSON. No markdown, no code fences.`;
-
-      try {
-        const res = await fetch(API_BASE + '/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + key,
-            'HTTP-Referer': 'https://switdeveloper.github.io/ai-real-estate-video-tour/'
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { role: 'system', content: 'You output JSON only. No markdown, no explanations.' },
-              { role: 'user', content: prompt }
-            ],
-            max_tokens: 4096,
-            temperature: 0.4
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          let raw = data.choices?.[0]?.message?.content || '[]';
-          raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
-          let parsed;
-          try {
-            parsed = JSON.parse(raw);
-          } catch(e) {
-            const arrMatch = raw.match(/\[[\s\S]*\]/);
-            if (arrMatch) {
-              try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
-            } else {
-              parsed = null;
+          if (res.ok) {
+            const data = await res.json();
+            let raw = data.choices?.[0]?.message?.content || '[]';
+            raw = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+            let parsed;
+            try {
+              parsed = JSON.parse(raw);
+            } catch(e) {
+              const arrMatch = raw.match(/\[[\s\S]*\]/);
+              if (arrMatch) {
+                try { parsed = JSON.parse(arrMatch[0]); } catch(e2) { parsed = null; }
+              } else {
+                parsed = null;
+              }
             }
-          }
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            generatedClips = parsed.map((c, i) => {
-              const catData = orderedCatData[i] || {};
-              return {
-                ...c,
-                photoIndex: catData.photoIndices ? catData.photoIndices[0] : i,
-                photoIndices: catData.photoIndices || [i],
-                category: c.category || catData.category || 'Other',
-                voiceover: c.dialogue || c.voiceover || 'Welcome to this beautiful property.',
-                visual: `Style: ${c.videoStyle || 'Luxury cinematic'}. Camera: ${c.cameraMovement || 'Static shot'}. Agent: ${c.agentMovement || 'On screen'}`,
-                audio: c.audio || 'Cinematic luxury background music',
-                dialogue: c.dialogue || '',
-                scenePurpose: c.scenePurpose || '',
-                cameraMovement: c.cameraMovement || '',
-                agentMovement: c.agentMovement || '',
-                videoStyle: c.videoStyle || '',
-                timeline: c.timeline || '',
-                negativePrompt: c.negativePrompt || '',
-                continueScene: c.continueScene || ''
-              };
-            });
-            renderClipScripts();
-            $('step3Next').disabled = false;
-            showToast('Generated ' + generatedClips.length + ' clips!');
-            saveMemory();
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const clip = parsed[0];
+              generatedClips.push({
+                ...clip,
+                photoIndex: catData.photoIndices[0],
+                photoIndices: catData.photoIndices,
+                category: cat,
+                voiceover: clip.dialogue || clip.voiceover || 'Welcome to this beautiful property.',
+                visual: `Style: ${clip.videoStyle || 'Luxury cinematic'}. Camera: ${clip.cameraMovement || 'Static shot'}. Agent: ${clip.agentMovement || 'On screen'}`,
+                audio: clip.audio || 'Cinematic luxury background music',
+                dialogue: clip.dialogue || '',
+                scenePurpose: clip.scenePurpose || '',
+                cameraMovement: clip.cameraMovement || '',
+                agentMovement: clip.agentMovement || '',
+                videoStyle: clip.videoStyle || '',
+                timeline: clip.timeline || '',
+                negativePrompt: clip.negativePrompt || '',
+                continueScene: clip.continueScene || ''
+              });
+              renderClipScripts();
+            } else {
+              // Fallback for this category
+              generatedClips.push({
+                photoIndex: catData.photoIndices[0],
+                photoIndices: catData.photoIndices,
+                category: cat,
+                voiceover: 'Welcome to the ' + cat.toLowerCase() + ' of this beautiful property.',
+                visual: `Cinematic ${cat.toLowerCase()} tour with agent on screen`,
+                audio: 'Cinematic luxury background music',
+                dialogue: 'Welcome to the ' + cat.toLowerCase() + ' of this beautiful property.',
+                scenePurpose: 'Showcase the ' + cat.toLowerCase(),
+                cameraMovement: 'Slow dolly',
+                agentMovement: 'Agent gestures toward the space',
+                videoStyle: 'Luxury real estate, 4K HDR, photorealistic',
+                timeline: '0-9s: Continuous walkthrough',
+                negativePrompt: 'No invented rooms or furniture',
+                continueScene: ci < orderedCatData.length - 1 ? 'Transition to next room' : 'Fade to black'
+              });
+              renderClipScripts();
+            }
           } else {
-            // Fallback
-            generatedClips = orderedCatData.map((d, i) => ({
-              photoIndex: d.photoIndices[0],
-              photoIndices: d.photoIndices,
-              category: d.category,
-              voiceover: 'Welcome to the ' + d.category.toLowerCase() + ' of this beautiful property.',
-              visual: `Cinematic ${d.category.toLowerCase()} tour with agent on screen`,
-              audio: 'Cinematic luxury background music',
-              dialogue: 'Welcome to the ' + d.category.toLowerCase() + ' of this beautiful property.',
-              scenePurpose: 'Showcase the ' + d.category.toLowerCase(),
-              cameraMovement: 'Slow dolly',
-              agentMovement: 'Agent gestures toward the space',
-              videoStyle: 'Luxury real estate, 4K HDR, photorealistic',
-              timeline: '0-9s: Continuous walkthrough',
-              negativePrompt: 'No invented rooms or furniture',
-              continueScene: i < orderedCatData.length - 1 ? 'Transition to next room' : 'Fade to black'
-            }));
-            renderClipScripts();
-            $('step3Next').disabled = false;
-            showToast('Used fallback clips (AI did not return valid JSON)');
+            const err = await res.text();
+            try { const j = JSON.parse(err); showToast('Error: ' + (j.error?.message || j.error)); } catch(e) { showToast('API Error'); }
+            break;
           }
-        } else {
-          const err = await res.text();
-          try { const j = JSON.parse(err); showToast('Error: ' + (j.error?.message || j.error)); } catch(e) { showToast('API Error'); }
+        } catch (err) {
+          showToast('Network error: ' + err.message);
+          break;
         }
-      } catch (err) {
-        showToast('Network error: ' + err.message);
       }
+
+      $('step3Next').disabled = false;
+      showToast('Generated ' + generatedClips.length + ' clips!');
+      saveMemory();
 
       isGeneratingScript = false;
       $('generateScriptBtn').disabled = false;
@@ -1549,6 +1572,32 @@ Output a JSON array of exactly ${orderedCatData.length} objects following the fo
           ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in this clip.`
           : `The agent is named "${agentName}".`;
 
+        // Find previously generated clip for context (previous category in scene order)
+        const sortable = $('sortableCategories');
+        const catEls = sortable ? [...sortable.querySelectorAll('.category-group')] : [];
+        const curIdx = catEls.findIndex(el => el.dataset.category === cat);
+        let prevClipContext = '';
+        if (curIdx > 0) {
+          const prevCat = catEls[curIdx - 1].dataset.category;
+          const prevClip = generatedClips.find(c => c.category === prevCat);
+          if (prevClip) {
+            prevClipContext = `
+------------------------------------------------
+PREVIOUSLY GENERATED CLIP (for ${prevCat}) — use this to maintain visual consistency:
+
+Title: ${prevClip.title || ''}
+Scene Purpose: ${prevClip.scenePurpose || ''}
+Video Style: ${prevClip.videoStyle || ''}
+Camera Movement: ${prevClip.cameraMovement || ''}
+Agent Movement: ${prevClip.agentMovement || ''}
+Dialogue: ${prevClip.dialogue || ''}
+Timeline: ${prevClip.timeline || ''}
+Continue Scene: ${prevClip.continueScene || ''}
+
+The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip. The transition from "${prevCat}" to "${cat}" must feel seamless.`;
+          }
+        }
+
         const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIP
 
 OBJECTIVE
@@ -1580,7 +1629,7 @@ Use ONLY the uploaded images assigned to "${cat}".
 Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
 The property must remain identical to the uploaded images throughout the scene.
-The agent must remain identical to the uploaded reference image.
+The agent must remain identical to the uploaded reference image.${prevClipContext}
 
 ------------------------------------------------
 
