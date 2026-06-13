@@ -1445,18 +1445,21 @@ Short, punchy, energetic dialogue for TikTok/Instagram style reels. Fast-paced, 
           if (prevClip) {
             prevClipContext = `
 ------------------------------------------------
-PREVIOUSLY GENERATED CLIP (for ${prevClip.category}) — use this to maintain visual consistency:
+PREVIOUS SCENE SUMMARY — carry forward for continuity
 
+When generating this clip, review what came before and lead naturally from it. If the previous clip introduced the exterior, this clip should transition into the entrance. If it highlighted the kitchen, transition into the dining area.
+
+Previous Clip: ${prevClip.category}
 Title: ${prevClip.title || ''}
 Scene Purpose: ${prevClip.scenePurpose || ''}
-Video Style: ${prevClip.videoStyle || ''}
-Camera Movement: ${prevClip.cameraMovement || ''}
-Agent Movement: ${prevClip.agentMovement || ''}
-Dialogue: ${prevClip.dialogue || ''}
-Timeline: ${prevClip.timeline || ''}
+Dialogue: ${prevClip.dialogue ? prevClip.dialogue.substring(0, 200) : ''}
 Continue Scene: ${prevClip.continueScene || ''}
 
-The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to this previous clip. The transition from "${prevClip.category}" to "${cat}" must feel seamless.`;
+Continuity Rules:
+- The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip.
+- The transition from "${prevClip.category}" to "${cat}" must feel seamless.
+- Reference the property details and agent from the start of the tour.
+- If the previous dialogue mentioned a specific feature leading toward this space, continue that thread.`;
           }
         }
 
@@ -1664,18 +1667,21 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
           if (prevClip) {
             prevClipContext = `
 ------------------------------------------------
-PREVIOUSLY GENERATED CLIP (for ${prevCat}) — use this to maintain visual consistency:
+PREVIOUS SCENE SUMMARY — carry forward for continuity
 
+When generating this clip, review what came before and lead naturally from it. If the previous clip introduced the exterior, this clip should transition into the entrance. If it highlighted the kitchen, transition into the dining area.
+
+Previous Clip: ${prevCat}
 Title: ${prevClip.title || ''}
 Scene Purpose: ${prevClip.scenePurpose || ''}
-Video Style: ${prevClip.videoStyle || ''}
-Camera Movement: ${prevClip.cameraMovement || ''}
-Agent Movement: ${prevClip.agentMovement || ''}
-Dialogue: ${prevClip.dialogue || ''}
-Timeline: ${prevClip.timeline || ''}
+Dialogue: ${prevClip.dialogue ? prevClip.dialogue.substring(0, 200) : ''}
 Continue Scene: ${prevClip.continueScene || ''}
 
-The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip. The transition from "${prevCat}" to "${cat}" must feel seamless.`;
+Continuity Rules:
+- The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip.
+- The transition from "${prevCat}" to "${cat}" must feel seamless.
+- Reference the property details and agent from the start of the tour.
+- If the previous dialogue mentioned a specific feature leading toward this space, continue that thread.`;
           }
         }
 
@@ -1840,63 +1846,90 @@ Output a JSON array with exactly 1 object. ONLY valid JSON. No markdown, no code
         };
         const catColor = catColors[clip.category] || 'bg-gray-100 text-gray-600';
         return `
-          <div class="clip-card" data-clip-index="${i}">
-            <div class="flex flex-col sm:flex-row">
-              <div class="sm:w-32 flex-shrink-0 relative">
-                <img src="${photo ? photo.dataUrl : ''}" class="w-full h-20 sm:h-full sm:w-32 object-cover" />
-                ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-medium">${photosCount} photos</span>` : ''}
-              </div>
-              <div class="p-3 sm:p-4 flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-2">
-                  <span class="text-xs font-semibold text-gray-500 uppercase">Clip ${i + 1}</span>
-                  <span class="text-[10px] font-semibold text-gray-700">${clip.title || ''}</span>
-                  <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${catColor}">${clip.category}</span>
+          <div class="clip-card border border-gray-200 rounded-xl overflow-hidden" data-clip-index="${i}">
+            <!-- Summary View -->
+            <div class="clip-summary p-3 sm:p-4">
+              <div class="flex items-start gap-3">
+                <div class="w-20 h-14 sm:w-24 sm:h-16 flex-shrink-0 relative rounded-lg overflow-hidden">
+                  <img src="${photo ? photo.dataUrl : ''}" class="w-full h-full object-cover" />
+                  ${photosCount > 1 ? `<span class="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] px-1 py-0.5 rounded font-medium">${photosCount}</span>` : ''}
                 </div>
-                <div class="grid grid-cols-1 gap-2 text-xs">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <span class="text-xs font-semibold text-gray-500 uppercase leading-none">Clip ${i + 1}</span>
+                    <span class="text-[11px] font-semibold text-gray-800 leading-none">${clip.title || clip.category}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${catColor} leading-none">${clip.category}</span>
+                  </div>
+                  <div class="text-xs text-gray-600 line-clamp-2 mb-1">${clip.scenePurpose || ''}</div>
+                  ${clip.dialogue ? `<div class="text-xs text-gray-500 italic line-clamp-1">"${clip.dialogue.substring(0, 120)}${clip.dialogue.length > 120 ? '...' : ''}"</div>` : ''}
+                  <div class="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
+                    <span>${clip.cameraMovement ? clip.cameraMovement.substring(0, 40) : 'No camera info'}</span>
+                    <span class="font-medium text-brand-primary cursor-pointer clip-toggle" data-i="${i}">
+                      <i class="fas fa-chevron-down text-[9px]"></i> Show details
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Extended View (hidden by default) -->
+            <div class="clip-extended hidden border-t border-gray-100 px-3 sm:px-4 py-3 bg-gray-50/50">
+              <div class="grid grid-cols-1 gap-2 text-xs">
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Scene Purpose</label>
+                  <div class="text-gray-700">${clip.scenePurpose || ''}</div>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Dialogue</label>
+                  <div class="text-gray-700 whitespace-pre-wrap">${clip.dialogue || clip.voiceover || ''}</div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Scene Purpose</label>
-                    <div class="text-gray-700">${clip.scenePurpose || ''}</div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Video Style</label>
+                    <div class="text-gray-600">${clip.videoStyle || ''}</div>
                   </div>
                   <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Dialogue</label>
-                    <div class="text-gray-700 whitespace-pre-wrap">${clip.dialogue || clip.voiceover || ''}</div>
-                  </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div>
-                      <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Video Style</label>
-                      <div class="text-gray-600">${clip.videoStyle || ''}</div>
-                    </div>
-                    <div>
-                      <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Camera Movement</label>
-                      <div class="text-gray-600">${clip.cameraMovement || ''}</div>
-                    </div>
-                    <div>
-                      <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Agent Movement</label>
-                      <div class="text-gray-600">${clip.agentMovement || ''}</div>
-                    </div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Camera Movement</label>
+                    <div class="text-gray-600">${clip.cameraMovement || ''}</div>
                   </div>
                   <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Timeline</label>
-                    <div class="text-gray-600 whitespace-pre-wrap">${clip.timeline || ''}</div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Agent Movement</label>
+                    <div class="text-gray-600">${clip.agentMovement || ''}</div>
                   </div>
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Negative Prompt</label>
-                    <div class="text-gray-500 italic">${clip.negativePrompt || ''}</div>
-                  </div>
-                  <div>
-                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Continue Scene</label>
-                    <div class="text-gray-600">${clip.continueScene || ''}</div>
-                  </div>
-                  <div class="flex items-center gap-4 border-t border-gray-100 pt-2 mt-1">
-                    <span class="text-[10px] text-gray-400"><strong>Reference:</strong> ${photosCount} photo${photosCount > 1 ? 's' : ''}</span>
-                    <span class="text-[10px] text-gray-400"><strong>Duration:</strong> <input type="number" class="clip-duration w-12 border border-gray-200 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-primary/20" value="${clip.duration || 9}" min="5" max="15" data-i="${i}" /> sec</span>
-                  </div>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Timeline</label>
+                  <div class="text-gray-600 whitespace-pre-wrap">${clip.timeline || ''}</div>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Negative Prompt</label>
+                  <div class="text-gray-500 italic">${clip.negativePrompt || ''}</div>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Continue Scene</label>
+                  <div class="text-gray-600">${clip.continueScene || ''}</div>
+                </div>
+                <div class="flex items-center gap-4 border-t border-gray-200 pt-2 mt-1">
+                  <span class="text-[10px] text-gray-400"><strong>Reference:</strong> ${photosCount} photo${photosCount > 1 ? 's' : ''}</span>
+                  <span class="text-[10px] text-gray-400"><strong>Duration:</strong> <input type="number" class="clip-duration w-12 border border-gray-200 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-primary/20" value="${clip.duration || 9}" min="5" max="15" data-i="${i}" /> sec</span>
                 </div>
               </div>
             </div>
           </div>
         `;
       }).join('');
+
+      // Toggle extended view
+      container.querySelectorAll('.clip-toggle').forEach(el => {
+        el.addEventListener('click', function() {
+          const i = this.dataset.i;
+          const card = this.closest('.clip-card');
+          const extended = card.querySelector('.clip-extended');
+          const isHidden = extended.classList.toggle('hidden');
+          this.innerHTML = isHidden
+            ? '<i class="fas fa-chevron-down text-[9px]"></i> Show details'
+            : '<i class="fas fa-chevron-up text-[9px]"></i> Hide details';
+        });
+      });
 
       // Auto-save edits
       container.querySelectorAll('.clip-voiceover').forEach(el => {
