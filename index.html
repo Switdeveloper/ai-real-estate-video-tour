@@ -148,6 +148,9 @@
           <span id="stepLabel5">Export</span>
         </div>
         <div class="absolute top-3 right-3 flex items-center gap-1">
+          <button onclick="if (confirm('Start a new project? Current progress will be saved in history.')) startNewTour()" class="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-brand-dark bg-white border border-gray-200 hover:border-gray-300 rounded-lg px-3 py-1.5 transition" title="Start a new project">
+            <i class="fas fa-file text-brand-primary"></i> New
+          </button>
           <button onclick="openHistory()" class="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-brand-dark bg-white border border-gray-200 hover:border-gray-300 rounded-lg px-3 py-1.5 transition" title="View and restore past sessions">
             <i class="fas fa-history text-brand-primary"></i> History <span id="historyBadge" class="hidden text-[10px] font-bold text-white bg-brand-primary rounded-full px-1.5 py-0.5 leading-none">0</span>
           </button>
@@ -1206,6 +1209,7 @@
     }
 
     function startNewTour() {
+      saveMemory();
       clearPhotos();
       goToStep(1);
       showToast('Started a new tour');
