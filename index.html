@@ -2423,12 +2423,42 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
                     </span>
                   </div>
                 </div>
+                <div class="flex flex-col gap-1.5 flex-shrink-0">
+                  <button onclick="regenerateClip(${i})" class="regen-btn text-[10px] text-brand-primary border border-brand-primary rounded-lg px-2.5 py-1 hover:bg-brand-primary/5 transition font-medium whitespace-nowrap">
+                    <i class="fas fa-sync-alt"></i> Regenerate
+                  </button>
+                </div>
               </div>
             </div>
             <!-- Extended View (hidden by default) -->
             <div class="clip-extended hidden border-t border-gray-100 px-3 sm:px-4 py-3 bg-gray-50/50">
-              <div class="grid grid-cols-1 gap-2 text-xs">
-                <div class="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-gray-700 bg-white rounded-lg p-3 border border-gray-100 max-h-96 overflow-y-auto">${clip.fullText || clip.scenePurpose || clip.dialogue || ''}</div>
+              <div class="grid grid-cols-1 gap-3 text-xs">
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Scene Purpose</label>
+                  <textarea class="clip-field w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}" data-field="scenePurpose">${clip.scenePurpose || ''}</textarea>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Dialogue</label>
+                  <textarea class="clip-field w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}" data-field="dialogue">${clip.dialogue || ''}</textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Camera Movement</label>
+                    <input class="clip-field w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="${(clip.cameraMovement || '').replace(/\n/g, ' ')}" data-i="${i}" data-field="cameraMovement" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Video Style</label>
+                    <input class="clip-field w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white" value="${(clip.videoStyle || '').replace(/\n/g, ' ')}" data-i="${i}" data-field="videoStyle" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Agent Movement</label>
+                  <textarea class="clip-field w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="1" data-i="${i}" data-field="agentMovement">${clip.agentMovement || ''}</textarea>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Negative Prompt</label>
+                  <textarea class="clip-field w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary/20 focus:border-brand-primary transition bg-white resize-none" rows="2" data-i="${i}" data-field="negativePrompt">${clip.negativePrompt || ''}</textarea>
+                </div>
                 <div class="flex items-center gap-4 border-t border-gray-200 pt-2 mt-1">
                   <span class="text-[10px] text-gray-400"><strong>Reference:</strong> ${photosCount} photo${photosCount > 1 ? 's' : ''}</span>
                   <span class="text-[10px] text-gray-400"><strong>Duration:</strong> <input type="number" class="clip-duration w-12 border border-gray-200 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-primary/20" value="${clip.duration || 9}" min="5" max="15" data-i="${i}" /> sec</span>
@@ -2452,20 +2482,14 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
         });
       });
 
-      // Auto-save edits
-      container.querySelectorAll('.clip-voiceover').forEach(el => {
+      // Auto-save field edits
+      container.querySelectorAll('.clip-field').forEach(el => {
         el.addEventListener('input', function() {
-          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].voiceover = this.value;
-        });
-      });
-      container.querySelectorAll('.clip-visual').forEach(el => {
-        el.addEventListener('input', function() {
-          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].visual = this.value;
-        });
-      });
-      container.querySelectorAll('.clip-audio').forEach(el => {
-        el.addEventListener('input', function() {
-          if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].audio = this.value;
+          const idx = parseInt(this.dataset.i);
+          const field = this.dataset.field;
+          if (generatedClips[idx]) {
+            generatedClips[idx][field] = this.value;
+          }
         });
       });
       container.querySelectorAll('.clip-duration').forEach(el => {
@@ -2473,6 +2497,208 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
           if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].duration = parseInt(this.value) || 9;
         });
       });
+    }
+
+    async function regenerateClip(clipIndex) {
+      const clip = generatedClips[clipIndex];
+      if (!clip) return;
+      const key = getApiKey();
+      if (!key) { showToast('Please set your API key in Settings first.'); openSettings(); return; }
+
+      const btn = document.querySelector(`.clip-card[data-clip-index="${clipIndex}"] .regen-btn`);
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+      try {
+        const cat = clip.category;
+        const orderedPhotoIndices = clip.photoIndices || [clip.photoIndex];
+        const orderedDescs = orderedPhotoIndices.map(pi => {
+          const r = analysisResults.find(a => a.photoIndex === pi);
+          return `Photo [${r ? r.category : 'Other'}]: ${r ? (r.tag || r.raw || '') : ''}`;
+        }).join('\n\n');
+        const propDetails = $('propertyDetails').value.trim();
+        const vidPrompt = $('videoPrompt').value.trim();
+        const agentName = ($('agentName').value || 'your agent').trim();
+        const model = getModelValue('script');
+
+        let extras = '';
+        if (propDetails) extras += `\nProperty Information:\n${propDetails}\n`;
+        if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
+
+        const agentAvatarInfo = agentPhotoData
+          ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in this clip.`
+          : `The agent is named "${agentName}".`;
+
+        const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIP
+
+OBJECTIVE
+
+Generate a natural, conversational video walkthrough for this property. Use the agent's image in each clip, guiding the viewer. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference what was previously shown and highlight key features. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure each clip feels connected, with the agent leading from room to room, and conclude by summarizing the full experience.
+
+------------------------------------------------
+
+INPUTS
+
+Property Description:${extras || '\nUse the property details and video style provided by the user.'}
+
+Agent Avatar:
+${agentAvatarInfo}
+The agent must appear in this clip as a constant visual element on screen.
+
+Images:
+${orderedDescs}
+${agentPhotoData ? 'Agent Reference Photo (appears in every clip): Uploaded agent photo — keep face, hair, age, clothing, and professional appearance identical in every clip' : ''}
+
+------------------------------------------------
+
+CRITICAL IMAGE RULES
+
+Use ONLY the uploaded images assigned to "${cat}".
+The agent reference photo above is the ONLY approved source for the agent's appearance.
+Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
+Everything must come from the uploaded images.
+The property must remain identical to the uploaded images throughout the scene.
+The agent must remain identical to the uploaded reference photo.
+
+${getDialogueRules()}
+
+------------------------------------------------
+
+OUTPUT EXACTLY THIS STRUCTURED FORMAT — no markdown, no code fences, no JSON:
+
+SCENE 1 – ${cat.toUpperCase()} WALKTHROUGH (9 SECONDS)
+
+Use ONLY the uploaded realtor image as the exact identity reference.
+Use ONLY the uploaded ${cat.toLowerCase()} images as the location reference.
+The realtor must remain identical to the uploaded image:
+Same face
+Same hairstyle
+Same clothing
+Same body proportions
+Same age
+Same professional appearance
+The room must remain exactly identical to the uploaded images:
+[list key visual features visible in the uploaded photos]
+
+⸻
+
+VIDEO FLOW
+
+0–3 Seconds
+[Camera and realtor action description for first 3 seconds]
+Dialogue: "[natural dialogue covering 0-3s]"
+
+3–6 Seconds
+[Camera and realtor action description for 3-6 seconds]
+Dialogue: "[natural dialogue covering 3-6s]"
+
+6–9 Seconds
+[Camera and realtor action description for 6-9 seconds]
+Dialogue: "[natural dialogue covering 6-9s]"
+
+⸻
+
+CAMERA
+Smooth cinematic gimbal tracking
+Luxury real estate commercial style
+Slow professional movement
+Natural parallax motion
+Architectural showcase framing
+Smooth transitions
+Professional MLS-quality presentation
+
+⸻
+
+QUALITY
+Ultra realistic
+Photorealistic
+4K HDR
+Natural daylight
+Accurate room proportions
+Real-world materials
+Perfect lip sync
+Natural walking animation
+Professional realtor gestures
+Luxury real estate marketing quality
+
+⸻
+
+NEGATIVE PROMPT
+Do not alter the realtor's face
+Do not alter clothing
+Do not alter hairstyle
+Do not redesign the room
+Do not change furniture placement
+Do not change wall colors
+Do not change flooring
+No AI artifacts
+No CGI appearance
+No distorted hands
+No floating objects
+No camera shake
+No poor lip sync
+No unrealistic motion
+
+⸻
+
+FINAL REQUIREMENT
+The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, and the realtor must physically walk through the space while speaking naturally. Every statement must correspond to what is visible on screen, creating the feeling of a genuine luxury real estate walkthrough filmed by a professional agent inside the actual property.`;
+
+        const res = await fetch(API_BASE + '/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + key,
+            'HTTP-Referer': 'https://switdeveloper.github.io/ai-real-estate-video-tour/'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: 'You are a professional real estate video scriptwriter. Output the structured scene format exactly as specified. No markdown, no code fences, no JSON.' },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 4096,
+            temperature: 0.4
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.choices?.[0]?.message?.content || '';
+          const parsed = parseStructuredClip(raw, cat);
+          if (parsed) {
+            generatedClips[clipIndex] = {
+              ...parsed,
+              photoIndex: orderedPhotoIndices[0],
+              photoIndices: orderedPhotoIndices,
+              agentPhoto: agentPhotoData,
+              category: cat,
+              voiceover: parsed.dialogue || 'Welcome to this beautiful property.',
+              visual: `Style: ${parsed.videoStyle || 'Luxury cinematic'}. Camera: ${parsed.cameraMovement || 'Static shot'}. Agent: ${parsed.agentMovement || 'On screen'}`,
+              audio: 'Cinematic luxury background music',
+              dialogue: parsed.dialogue || '',
+              scenePurpose: parsed.scenePurpose || '',
+              cameraMovement: parsed.cameraMovement || '',
+              agentMovement: parsed.agentMovement || '',
+              videoStyle: parsed.videoStyle || '',
+              timeline: parsed.timeline || '',
+              negativePrompt: parsed.negativePrompt || '',
+              continueScene: parsed.continueScene || ''
+            };
+            renderClipScripts();
+            saveMemory();
+            showToast('Regenerated clip ' + (clipIndex + 1));
+          } else {
+            showToast('AI returned invalid response');
+          }
+        } else {
+          const err = await res.text();
+          try { const j = JSON.parse(err); showToast('Error: ' + (j.error?.message || j.error)); } catch(e) { showToast('API Error'); }
+        }
+      } catch (err) {
+        showToast('Network error: ' + err.message);
+      }
+
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Regenerate'; }
     }
 
     // ── Step 4: Clip Preview ──
