@@ -1924,7 +1924,7 @@ Continuity Rules:
 
 OBJECTIVE
 
-Generate a natural, conversational video walkthrough for this property. Use the agent's image in each clip, guiding the viewer. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference what was previously shown and highlight key features. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure each clip feels connected, with the agent leading from room to room, and conclude by summarizing the full experience.
+Generate a natural, conversational video walkthrough for this property. The agent MUST physically walk through each room in every clip — stepping forward, gesturing toward features, turning to lead the viewer naturally. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference ONLY what is visible in the uploaded photos. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure every clip feels like genuine live-action real estate footage with a real agent walking through the actual property. Conclude by summarizing the full experience.
 
 ------------------------------------------------
 
@@ -1946,10 +1946,10 @@ CRITICAL IMAGE RULES
 
 Use ONLY the uploaded images assigned to "${cat}".
 The agent reference photo above is the ONLY approved source for the agent's appearance.
-Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
+STRICT: Every element described must be directly visible in the uploaded photos. Never invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
-The property must remain identical to the uploaded images throughout the scene.
-The agent must remain identical to the uploaded reference image.${prevClipContext}
+The property must remain exactly identical to the uploaded images throughout the scene.
+The agent must remain exactly identical to the uploaded reference image.${prevClipContext}
 
 ${getDialogueRules()}
 
@@ -2001,16 +2001,11 @@ Professional MLS-quality presentation
 ⸻
 
 QUALITY
-Ultra realistic
-Photorealistic
-4K HDR
-Natural daylight
-Accurate room proportions
-Real-world materials
-Perfect lip sync
-Natural walking animation
-Professional realtor gestures
-Luxury real estate marketing quality
+Real live-action footage aesthetic — NOT AI generated or CGI
+Natural handheld or gimbal camera feel, like a real on-site shoot
+Authentic real estate video with a human agent walking through a real property
+Natural daylight, accurate room proportions, real-world materials
+Professional realtor gestures, natural walking, genuine movement
 
 ⸻
 
@@ -2033,7 +2028,7 @@ No unrealistic motion
 ⸻
 
 FINAL REQUIREMENT
-The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, and the realtor must physically walk through the space while speaking naturally. Every statement must correspond to what is visible on screen, creating the feeling of a genuine luxury real estate walkthrough filmed by a professional agent inside the actual property.`;
+The ${cat.toLowerCase()} must remain exactly identical to the uploaded images. The realtor MUST physically walk through each room in every clip — stepping toward features, gesturing, and leading the viewer naturally. Every dialogue line must reference only what is actually visible on screen. The output must read like genuine live-action luxury real estate footage filmed by a professional agent inside the real property — NOT an AI-generated or CGI-style video.`;
 
         try {
           const res = await fetch(API_BASE + '/chat/completions', {
@@ -2203,7 +2198,7 @@ Continuity Rules:
 
 OBJECTIVE
 
-Generate a natural, conversational video walkthrough for this property. Use the agent's image in each clip, guiding the viewer. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference what was previously shown and highlight key features. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure each clip feels connected, with the agent leading from room to room, and conclude by summarizing the full experience.
+Generate a natural, conversational video walkthrough for this property. The agent MUST physically walk through each room in every clip — stepping forward, gesturing toward features, turning to lead the viewer naturally. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference ONLY what is visible in the uploaded photos. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure every clip feels like genuine live-action real estate footage with a real agent walking through the actual property. Conclude by summarizing the full experience.
 
 ------------------------------------------------
 
@@ -2225,10 +2220,10 @@ CRITICAL IMAGE RULES
 
 Use ONLY the uploaded images assigned to "${cat}".
 The agent reference photo above is the ONLY approved source for the agent's appearance.
-Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
+STRICT: Every element described must be directly visible in the uploaded photos. Never invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
-The property must remain identical to the uploaded images throughout the scene.
-The agent must remain identical to the uploaded reference photo.${prevClipContext}
+The property must remain exactly identical to the uploaded images throughout the scene.
+The agent must remain exactly identical to the uploaded reference photo.${prevClipContext}
 
 ${getDialogueRules()}
 
@@ -2280,16 +2275,11 @@ Professional MLS-quality presentation
 ⸻
 
 QUALITY
-Ultra realistic
-Photorealistic
-4K HDR
-Natural daylight
-Accurate room proportions
-Real-world materials
-Perfect lip sync
-Natural walking animation
-Professional realtor gestures
-Luxury real estate marketing quality
+Real live-action footage aesthetic — NOT AI generated or CGI
+Natural handheld or gimbal camera feel, like a real on-site shoot
+Authentic real estate video with a human agent walking through a real property
+Natural daylight, accurate room proportions, real-world materials
+Professional realtor gestures, natural walking, genuine movement
 
 ⸻
 
@@ -2312,7 +2302,7 @@ No unrealistic motion
 ⸻
 
 FINAL REQUIREMENT
-The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, and the realtor must physically walk through the space while speaking naturally. Every statement must correspond to what is visible on screen, creating the feeling of a genuine luxury real estate walkthrough filmed by a professional agent inside the actual property.`;
+The ${cat.toLowerCase()} must remain exactly identical to the uploaded images. The realtor MUST physically walk through each room in every clip — stepping toward features, gesturing, and leading the viewer naturally. Every dialogue line must reference only what is actually visible on screen. The output must read like genuine live-action luxury real estate footage filmed by a professional agent inside the real property — NOT an AI-generated or CGI-style video.`;
 
         const res = await fetch(API_BASE + '/chat/completions', {
           method: 'POST',
@@ -2641,7 +2631,7 @@ Continuity Rules:
 
 OBJECTIVE
 
-Generate a natural, conversational video walkthrough for this property. Use the agent's image in each clip, guiding the viewer. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference what was previously shown and highlight key features. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure each clip feels connected, with the agent leading from room to room, and conclude by summarizing the full experience.
+Generate a natural, conversational video walkthrough for this property. The agent MUST physically walk through each room in every clip — stepping forward, gesturing toward features, turning to lead the viewer naturally. Start outside, mentioning the property name, then smoothly transition inside. For each scene, reference ONLY what is visible in the uploaded photos. Keep the dialogue flowing naturally, emphasizing why this home is unique. Ensure every clip feels like genuine live-action real estate footage with a real agent walking through the actual property. Conclude by summarizing the full experience.
 
 ------------------------------------------------
 
@@ -2663,10 +2653,10 @@ CRITICAL IMAGE RULES
 
 Use ONLY the uploaded images assigned to "${cat}".
 The agent reference photo above is the ONLY approved source for the agent's appearance.
-Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
+STRICT: Every element described must be directly visible in the uploaded photos. Never invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
-The property must remain identical to the uploaded images throughout the scene.
-The agent must remain identical to the uploaded reference image.${prevClipContext}
+The property must remain exactly identical to the uploaded images throughout the scene.
+The agent must remain exactly identical to the uploaded reference image.${prevClipContext}
 
 ${getDialogueRules()}
 
@@ -2718,16 +2708,11 @@ Professional MLS-quality presentation
 ⸻
 
 QUALITY
-Ultra realistic
-Photorealistic
-4K HDR
-Natural daylight
-Accurate room proportions
-Real-world materials
-Perfect lip sync
-Natural walking animation
-Professional realtor gestures
-Luxury real estate marketing quality
+Real live-action footage aesthetic — NOT AI generated or CGI
+Natural handheld or gimbal camera feel, like a real on-site shoot
+Authentic real estate video with a human agent walking through a real property
+Natural daylight, accurate room proportions, real-world materials
+Professional realtor gestures, natural walking, genuine movement
 
 ⸻
 
@@ -2750,7 +2735,7 @@ No unrealistic motion
 ⸻
 
 FINAL REQUIREMENT
-The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, and the realtor must physically walk through the space while speaking naturally. Every statement must correspond to what is visible on screen, creating the feeling of a genuine luxury real estate walkthrough filmed by a professional agent inside the actual property.`;
+The ${cat.toLowerCase()} must remain exactly identical to the uploaded images. The realtor MUST physically walk through each room in every clip — stepping toward features, gesturing, and leading the viewer naturally. Every dialogue line must reference only what is actually visible on screen. The output must read like genuine live-action luxury real estate footage filmed by a professional agent inside the real property — NOT an AI-generated or CGI-style video.`;
 
         const res = await fetch(API_BASE + '/chat/completions', {
           method: 'POST',
