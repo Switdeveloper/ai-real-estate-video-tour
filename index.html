@@ -2424,6 +2424,9 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
                   </div>
                 </div>
                 <div class="flex flex-col gap-1.5 flex-shrink-0">
+                  <button onclick="copyClipText(${i})" class="text-[10px] text-gray-600 border border-gray-300 rounded-lg px-2.5 py-1 hover:bg-gray-50 transition font-medium whitespace-nowrap" title="Copy full clip script">
+                    <i class="fas fa-copy"></i> Copy
+                  </button>
                   <button onclick="regenerateClip(${i})" class="regen-btn text-[10px] text-brand-primary border border-brand-primary rounded-lg px-2.5 py-1 hover:bg-brand-primary/5 transition font-medium whitespace-nowrap">
                     <i class="fas fa-sync-alt"></i> Regenerate
                   </button>
@@ -2496,6 +2499,38 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
         el.addEventListener('input', function() {
           if (generatedClips[this.dataset.i]) generatedClips[this.dataset.i].duration = parseInt(this.value) || 9;
         });
+      });
+    }
+
+    function fallbackCopy(text, toastMsg) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      showToast(toastMsg);
+    }
+
+    function copyClipText(clipIndex) {
+      const clip = generatedClips[clipIndex];
+      if (!clip) return;
+      const parts = [];
+      if (clip.title) parts.push(`TITLE: ${clip.title}`);
+      if (clip.category) parts.push(`CATEGORY: ${clip.category}`);
+      if (clip.scenePurpose) parts.push(`\nSCENE PURPOSE:\n${clip.scenePurpose}`);
+      if (clip.dialogue) parts.push(`\nDIALOGUE:\n${clip.dialogue}`);
+      if (clip.cameraMovement) parts.push(`\nCAMERA MOVEMENT:\n${clip.cameraMovement}`);
+      if (clip.videoStyle) parts.push(`\nVIDEO STYLE:\n${clip.videoStyle}`);
+      if (clip.agentMovement) parts.push(`\nAGENT MOVEMENT:\n${clip.agentMovement}`);
+      if (clip.negativePrompt) parts.push(`\nNEGATIVE PROMPT:\n${clip.negativePrompt}`);
+      const text = parts.join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`Clip ${clipIndex + 1} script copied to clipboard`);
+      }).catch(() => {
+        fallbackCopy(text, `Clip ${clipIndex + 1} script copied to clipboard`);
       });
     }
 
