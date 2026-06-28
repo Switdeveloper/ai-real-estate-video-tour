@@ -2525,8 +2525,41 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
         if (vidPrompt) extras += `\nVideo Style Request:\n${vidPrompt}\n`;
 
         const agentAvatarInfo = agentPhotoData
-          ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in this clip.`
+          ? `An agent avatar/photo has been uploaded. Preserve the agent's face, hair, age, clothing, body proportions, and professional appearance in every clip.`
           : `The agent is named "${agentName}".`;
+
+        const isFirstClip = clipIndex === 0;
+        let prevClipContext = '';
+        if (isFirstClip) {
+          prevClipContext = `
+
+CLIP POSITION RULE — FIRST CLIP (Intro)
+This is the INTRO / establishing clip. Introduce the property and the agent. Welcome language IS allowed here. Set the scene for the tour.`;
+        } else {
+          const prevClip = generatedClips[clipIndex - 1];
+          if (prevClip) {
+            prevClipContext = `
+-----------------------------------------------
+PREVIOUS SCENE SUMMARY — carry forward for continuity
+
+When generating this clip, review what came before and lead naturally from it. If the previous clip introduced the exterior, this clip should transition into the entrance. If it highlighted the kitchen, transition into the dining area.
+
+Previous Clip: ${prevClip.category}
+Title: ${prevClip.title || ''}
+Scene Purpose: ${prevClip.scenePurpose || ''}
+Dialogue: ${prevClip.dialogue ? prevClip.dialogue.substring(0, 200) : ''}
+Continue Scene: ${prevClip.continueScene || ''}
+
+CLIP POSITION RULE — NOT the intro clip
+Do NOT use welcome phrases or re-introduce the property. Continue the walkthrough naturally from the previous scene.
+
+Continuity Rules:
+- The agent's appearance (face, hair, age, clothing), lighting, and overall visual style must remain IDENTICAL to the previous clip.
+- The transition from "${prevClip.category}" to "${cat}" must feel seamless.
+- Reference the property details and agent from the start of the tour.
+- If the previous dialogue mentioned a specific feature leading toward this space, continue that thread.`;
+          }
+        }
 
         const prompt = `STEP 3 - GENERATE CINEMATIC VIDEO CLIP
 
@@ -2557,7 +2590,7 @@ The agent reference photo above is the ONLY approved source for the agent's appe
 Do NOT invent rooms, furniture, decor, landscaping, architecture, windows, layouts, or features.
 Everything must come from the uploaded images.
 The property must remain identical to the uploaded images throughout the scene.
-The agent must remain identical to the uploaded reference photo.
+The agent must remain identical to the uploaded reference image.${prevClipContext}
 
 ${getDialogueRules()}
 
@@ -2565,7 +2598,7 @@ ${getDialogueRules()}
 
 OUTPUT EXACTLY THIS STRUCTURED FORMAT — no markdown, no code fences, no JSON:
 
-SCENE 1 – ${cat.toUpperCase()} WALKTHROUGH (9 SECONDS)
+SCENE ${clipIndex + 1} – ${cat.toUpperCase()} WALKTHROUGH (9 SECONDS)
 
 Use ONLY the uploaded realtor image as the exact identity reference.
 Use ONLY the uploaded ${cat.toLowerCase()} images as the location reference.
@@ -2651,7 +2684,7 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
             'HTTP-Referer': 'https://switdeveloper.github.io/ai-real-estate-video-tour/'
           },
           body: JSON.stringify({
-            model,
+            model: model,
             messages: [
               { role: 'system', content: 'You are a professional real estate video scriptwriter. Output the structured scene format exactly as specified. No markdown, no code fences, no JSON.' },
               { role: 'user', content: prompt }
