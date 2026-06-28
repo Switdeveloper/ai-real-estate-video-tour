@@ -147,11 +147,11 @@
           <span id="stepLabel4">Generate</span>
           <span id="stepLabel5">Export</span>
         </div>
-        <div class="absolute top-3 right-3 flex items-center gap-2">
-          <button onclick="openHistory()" class="text-gray-400 hover:text-brand-dark transition text-sm" title="History">
-            <i class="fas fa-history"></i>
+        <div class="absolute top-3 right-3 flex items-center gap-1">
+          <button onclick="openHistory()" class="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-brand-dark bg-white border border-gray-200 hover:border-gray-300 rounded-lg px-3 py-1.5 transition" title="View and restore past sessions">
+            <i class="fas fa-history text-brand-primary"></i> History <span id="historyBadge" class="hidden text-[10px] font-bold text-white bg-brand-primary rounded-full px-1.5 py-0.5 leading-none">0</span>
           </button>
-          <button onclick="openSettings()" class="text-gray-400 hover:text-brand-dark transition text-sm" title="Settings">
+          <button onclick="openSettings()" class="text-gray-400 hover:text-brand-dark transition text-sm border border-gray-200 hover:border-gray-300 rounded-lg px-2 py-1.5" title="Settings">
             <i class="fas fa-cog"></i>
           </button>
         </div>
@@ -257,23 +257,33 @@
       <div class="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-full max-w-2xl mx-4 animate-pop max-h-[90vh] overflow-y-auto custom-scroll">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-bold text-brand-dark flex items-center gap-2">
-            <i class="fas fa-history text-brand-primary"></i> Session History
+            <i class="fas fa-history text-brand-primary"></i> Saved Sessions
           </h3>
           <button onclick="closeHistory()" class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">&times;</button>
         </div>
 
-        <div class="mb-4 flex items-center gap-2 text-xs text-gray-500">
-          <i class="fas fa-info-circle"></i>
-          <span>Your current session auto-saves. Click <strong>Save Snapshot</strong> to preserve a copy, or restore any past session below.</span>
-          <button onclick="saveHistorySnapshot()" class="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-800 transition flex items-center gap-1">
-            <i class="fas fa-camera"></i> Save Snapshot
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 text-xs text-blue-700 flex items-start gap-2">
+          <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+          <div>
+            <strong>Your work auto-saves</strong> as you go — refreshing the page picks up where you left off.
+            Use <strong>"Save a Copy"</strong> below to keep a named snapshot for later.
+            Click <strong>"Restore"</strong> on any past session to continue working on it.
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 mb-4">
+          <button onclick="saveHistorySnapshot()" class="bg-brand-primary text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-red-800 transition flex items-center gap-1.5 shadow-sm">
+            <i class="fas fa-plus-circle"></i> Save a Copy
+          </button>
+          <button onclick="closeHistory(); startNewTour();" class="text-xs text-gray-500 border border-gray-300 rounded-lg px-4 py-2 hover:bg-gray-50 transition flex items-center gap-1.5">
+            <i class="fas fa-file"></i> Start Fresh
           </button>
         </div>
 
         <div id="historyList" class="space-y-2">
           <div class="text-center py-8 text-gray-400 text-sm">
             <i class="fas fa-inbox text-2xl mb-2"></i>
-            <p>No saved sessions yet.</p>
+            <p>No saved sessions yet. Your current session auto-saves — click "Save a Copy" to keep it.</p>
           </div>
         </div>
       </div>
@@ -621,11 +631,25 @@
       if (e.target === e.currentTarget) closeHistory();
     });
 
+    async function updateHistoryBadge() {
+      const badge = $('historyBadge');
+      if (!badge) return;
+      const index = await getHistoryList();
+      const count = index.length;
+      if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
     async function renderHistoryModal() {
       const list = $('historyList');
       const index = await getHistoryList();
+      await updateHistoryBadge();
       if (!index.length) {
-        list.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm"><i class="fas fa-inbox text-2xl mb-2"></i><p>No saved sessions yet.</p></div>';
+        list.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm"><i class="fas fa-inbox text-2xl mb-2"></i><p>No saved sessions yet. Your current session auto-saves — click "Save a Copy" to keep it.</p></div>';
         return;
       }
       list.innerHTML = index.map(e => {
@@ -656,7 +680,6 @@
           </div>
         `;
       }).join('');
-      _historyDirty = false;
     }
 
     function getApiKey() {
@@ -728,8 +751,6 @@
     const DB_STORE = 'memory';
     const CUR_KEY = '_current';
     const IDX_KEY = '_index';
-
-    let _historyDirty = false;
 
     function openDB() {
       return new Promise((resolve, reject) => {
@@ -846,7 +867,6 @@
         const index = await dbGet(IDX_KEY).catch(() => null) || [];
         index.unshift({ id: sid, title, createdAt: now, updatedAt: now, step: currentStep, photoCount: uploadedPhotos.length });
         await dbPut(IDX_KEY, index);
-        _historyDirty = true;
         showToast('Saved to history');
         return sid;
       } catch (e) {
@@ -873,7 +893,6 @@
         const index = await dbGet(IDX_KEY).catch(() => null) || [];
         await dbPut(IDX_KEY, index.filter(e => e.id !== sid));
         if (getCurId() === sid) setCurId('');
-        _historyDirty = true;
         renderHistoryModal();
       } catch (e) {
         console.warn('History delete failed:', e.message);
@@ -1184,6 +1203,12 @@
       $('categoryOrderList').innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-images text-3xl mb-3"></i><p class="text-sm">Complete analysis in step 2 first.</p></div>';
       $('generateScriptBtn').disabled = true;
       $('step3Next').disabled = true;
+    }
+
+    function startNewTour() {
+      clearPhotos();
+      goToStep(1);
+      showToast('Started a new tour');
     }
 
     // ── Step 2: AI Analysis ──
@@ -2519,6 +2544,7 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
     document.addEventListener('DOMContentLoaded', async () => {
       loadSettings();
       await loadMemory();
+      updateHistoryBadge();
     });
 
     // Reveal observer
