@@ -147,9 +147,14 @@
           <span id="stepLabel4">Generate</span>
           <span id="stepLabel5">Export</span>
         </div>
-        <button onclick="openSettings()" class="absolute top-3 right-3 text-gray-400 hover:text-brand-dark transition text-sm" title="Settings">
-          <i class="fas fa-cog"></i>
-        </button>
+        <div class="absolute top-3 right-3 flex items-center gap-2">
+          <button onclick="openHistory()" class="text-gray-400 hover:text-brand-dark transition text-sm" title="History">
+            <i class="fas fa-history"></i>
+          </button>
+          <button onclick="openSettings()" class="text-gray-400 hover:text-brand-dark transition text-sm" title="Settings">
+            <i class="fas fa-cog"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Settings Modal -->
@@ -242,6 +247,33 @@
               <i class="fas fa-external-link-alt"></i> Get free API key
             </a>
             <span class="text-[10px] text-gray-400">Models refresh automatically</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="historyModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm hidden transition-opacity duration-200">
+      <div class="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-full max-w-2xl mx-4 animate-pop max-h-[90vh] overflow-y-auto custom-scroll">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-bold text-brand-dark flex items-center gap-2">
+            <i class="fas fa-history text-brand-primary"></i> Session History
+          </h3>
+          <button onclick="closeHistory()" class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">&times;</button>
+        </div>
+
+        <div class="mb-4 flex items-center gap-2 text-xs text-gray-500">
+          <i class="fas fa-info-circle"></i>
+          <span>Your current session auto-saves. Click <strong>Save Snapshot</strong> to preserve a copy, or restore any past session below.</span>
+          <button onclick="saveHistorySnapshot()" class="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-800 transition flex items-center gap-1">
+            <i class="fas fa-camera"></i> Save Snapshot
+          </button>
+        </div>
+
+        <div id="historyList" class="space-y-2">
+          <div class="text-center py-8 text-gray-400 text-sm">
+            <i class="fas fa-inbox text-2xl mb-2"></i>
+            <p>No saved sessions yet.</p>
           </div>
         </div>
       </div>
@@ -561,6 +593,7 @@
     let isGeneratingScript = false;
     let generatedClips = [];
     let generatingCategories = new Set();
+    let regeneratingPhotos = new Set();
 
     // ── DOM refs ──
     const $ = id => document.getElementById(id);
@@ -575,6 +608,56 @@
     $('settingsModal').addEventListener('click', function(e) {
       if (e.target === e.currentTarget) closeSettings();
     });
+
+    // ── History ──
+    function openHistory() {
+      $('historyModal').classList.remove('hidden');
+      renderHistoryModal();
+    }
+    function closeHistory() {
+      $('historyModal').classList.add('hidden');
+    }
+    $('historyModal').addEventListener('click', function(e) {
+      if (e.target === e.currentTarget) closeHistory();
+    });
+
+    async function renderHistoryModal() {
+      const list = $('historyList');
+      const index = await getHistoryList();
+      if (!index.length) {
+        list.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm"><i class="fas fa-inbox text-2xl mb-2"></i><p>No saved sessions yet.</p></div>';
+        return;
+      }
+      list.innerHTML = index.map(e => {
+        const isCurrent = e.id === getCurId();
+        const date = new Date(e.updatedAt).toLocaleString();
+        const stepNames = ['', 'Upload Photos', 'Analyze', 'Script', 'Generate', 'Export'];
+        return `
+          <div class="flex items-center gap-3 p-3 rounded-xl border ${isCurrent ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-200'} transition hover:border-gray-300">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-gray-800 truncate">${e.title || 'Untitled Tour'}</span>
+                ${isCurrent ? '<span class="text-[10px] font-semibold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-full">Current</span>' : ''}
+              </div>
+              <div class="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
+                <span>${date}</span>
+                <span>&middot;</span>
+                <span>${stepNames[e.step] || 'Step ' + e.step}</span>
+                <span>&middot;</span>
+                <span>${e.photoCount || 0} photo${e.photoCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <button onclick="loadFromHistory('${e.id}')" class="text-xs text-brand-primary border border-brand-primary rounded-lg px-3 py-1.5 hover:bg-brand-primary/5 transition font-medium">
+              <i class="fas fa-undo-alt mr-1"></i> Restore
+            </button>
+            <button onclick="deleteFromHistory('${e.id}')" class="text-xs text-red-500 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition" title="Delete">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+      _historyDirty = false;
+    }
 
     function getApiKey() {
       return localStorage.getItem('orApiKey') || '';
@@ -640,86 +723,239 @@
       saveMemory();
     }
 
-    // ── Session Memory (localStorage persistence) ──
-    const MEMORY_KEY = 'aiTourMemory';
+    // ── Session Memory (IndexedDB persistence) ──
+    const DB_NAME = 'aiTourDB';
+    const DB_STORE = 'memory';
+    const CUR_KEY = '_current';
+    const IDX_KEY = '_index';
 
-    function saveMemory() {
+    let _historyDirty = false;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => e.target.result.createObjectStore(DB_STORE);
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    function dbPut(key, val) {
+      return openDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).put(val, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e.target.error);
+      }));
+    }
+
+    function dbGet(key) {
+      return openDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const req = tx.objectStore(DB_STORE).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => reject(e.target.error);
+      }));
+    }
+
+    function dbDel(key) {
+      return openDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e.target.error);
+      }));
+    }
+
+    function dbAllKeys() {
+      return openDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const req = tx.objectStore(DB_STORE).getAllKeys();
+        req.onsuccess = () => resolve(req.result.filter(k => k !== CUR_KEY && k !== IDX_KEY));
+        req.onerror = (e) => reject(e.target.error);
+      }));
+    }
+
+    function genSid() {
+      return 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6);
+    }
+
+    function getCurId() {
+      return localStorage.getItem('aiTourCurId') || '';
+    }
+
+    function setCurId(id) {
+      if (id) localStorage.setItem('aiTourCurId', id);
+      else localStorage.removeItem('aiTourCurId');
+    }
+
+    function buildState() {
+      return {
+        agentName: $('agentName')?.value || '',
+        agentPhotoData: agentPhotoData || '',
+        propertyDetails: $('propertyDetails')?.value || '',
+        videoPrompt: $('videoPrompt')?.value || '',
+        dialogueMode: $('dialogueMode')?.value || 'walkthrough',
+        dialogueLanguage: $('dialogueLanguage')?.value || 'English',
+        uploadedPhotos: uploadedPhotos.map(p => ({ name: p.name, dataUrl: p.dataUrl })),
+        analysisResults: analysisResults,
+        generatedClips: generatedClips,
+        categoryGroups: window._categoryGroups || {},
+        currentStep: currentStep
+      };
+    }
+
+    async function saveMemory() {
       try {
-        const state = {
-          agentName: $('agentName')?.value || '',
-          agentPhotoData: agentPhotoData || '',
-          propertyDetails: $('propertyDetails')?.value || '',
-          videoPrompt: $('videoPrompt')?.value || '',
-          dialogueMode: $('dialogueMode')?.value || 'walkthrough',
-          dialogueLanguage: $('dialogueLanguage')?.value || 'English',
-          uploadedPhotos: uploadedPhotos.map(p => ({ name: p.name, dataUrl: p.dataUrl })),
-          analysisResults: analysisResults,
-          generatedClips: generatedClips,
-          categoryGroups: window._categoryGroups || {},
-          currentStep: currentStep
-        };
-        localStorage.setItem(MEMORY_KEY, JSON.stringify(state));
+        let sid = getCurId();
+        const isNew = !sid;
+        if (isNew) { sid = genSid(); setCurId(sid); }
+
+        const state = buildState();
+        const now = Date.now();
+        const title = state.propertyDetails || state.agentName || 'Untitled Tour';
+
+        let createdAt = now;
+        if (!isNew) {
+          const existing = await dbGet(sid).catch(() => null);
+          if (existing?.createdAt) createdAt = existing.createdAt;
+        }
+
+        const session = { id: sid, title, createdAt, updatedAt: now, step: currentStep, photoCount: uploadedPhotos.length, state };
+        await dbPut(sid, session);
+
+        const index = await dbGet(IDX_KEY).catch(() => null) || [];
+        const ei = index.findIndex(e => e.id === sid);
+        const entry = { id: sid, title, createdAt, updatedAt: now, step: currentStep, photoCount: uploadedPhotos.length };
+        if (ei >= 0) index[ei] = entry;
+        else index.unshift(entry);
+        await dbPut(IDX_KEY, index);
       } catch (e) {
-        console.warn('Memory save failed (likely storage quota):', e.message);
+        console.warn('Memory save failed:', e.message);
       }
     }
 
-    function loadMemory() {
+    async function saveHistorySnapshot() {
       try {
-        const raw = localStorage.getItem(MEMORY_KEY);
-        if (!raw) return;
-        const state = JSON.parse(raw);
+        const state = buildState();
+        const now = Date.now();
+        const sid = genSid();
+        const title = state.propertyDetails || state.agentName || 'Untitled Tour';
+        const session = { id: sid, title, createdAt: now, updatedAt: now, step: currentStep, photoCount: uploadedPhotos.length, state };
+        await dbPut(sid, session);
+        const index = await dbGet(IDX_KEY).catch(() => null) || [];
+        index.unshift({ id: sid, title, createdAt: now, updatedAt: now, step: currentStep, photoCount: uploadedPhotos.length });
+        await dbPut(IDX_KEY, index);
+        _historyDirty = true;
+        showToast('Saved to history');
+        return sid;
+      } catch (e) {
+        console.warn('History save failed:', e.message);
+      }
+    }
 
-        if (state.agentName) $('agentName').value = state.agentName;
-        if (state.agentPhotoData) {
-          agentPhotoData = state.agentPhotoData;
-          $('agentPhotoPreview').src = agentPhotoData;
-          $('agentPhotoPreview').classList.remove('hidden');
-          $('agentPhotoPlaceholder').classList.add('hidden');
-        }
-        if (state.propertyDetails) $('propertyDetails').value = state.propertyDetails;
-        if (state.videoPrompt) $('videoPrompt').value = state.videoPrompt;
-        if (state.dialogueMode) $('dialogueMode').value = state.dialogueMode;
-        if (state.dialogueLanguage) $('dialogueLanguage').value = state.dialogueLanguage;
+    async function loadFromHistory(sid) {
+      try {
+        const session = await dbGet(sid);
+        if (!session?.state) return;
+        const state = session.state;
+        setCurId(sid);
+        applyState(state);
+        showToast('Session restored');
+      } catch (e) {
+        console.warn('History load failed:', e.message);
+      }
+    }
 
-        if (state.uploadedPhotos && state.uploadedPhotos.length) {
-          uploadedPhotos = state.uploadedPhotos;
-          renderPhotos();
-        }
+    async function deleteFromHistory(sid) {
+      try {
+        await dbDel(sid);
+        const index = await dbGet(IDX_KEY).catch(() => null) || [];
+        await dbPut(IDX_KEY, index.filter(e => e.id !== sid));
+        if (getCurId() === sid) setCurId('');
+        _historyDirty = true;
+        renderHistoryModal();
+      } catch (e) {
+        console.warn('History delete failed:', e.message);
+      }
+    }
 
-        let hasAnalysis = false;
-        if (state.analysisResults && state.analysisResults.length) {
-          analysisResults = state.analysisResults;
-          window._categoryGroups = state.categoryGroups || {};
-          hasAnalysis = true;
-        }
+    async function getHistoryList() {
+      try {
+        return await dbGet(IDX_KEY).catch(() => null) || [];
+      } catch (e) {
+        return [];
+      }
+    }
 
-        if (state.generatedClips && state.generatedClips.length) {
-          generatedClips = state.generatedClips;
-        }
+    function applyState(state) {
+      if (state.agentName) $('agentName').value = state.agentName;
+      if (state.agentPhotoData) {
+        agentPhotoData = state.agentPhotoData;
+        $('agentPhotoPreview').src = agentPhotoData;
+        $('agentPhotoPreview').classList.remove('hidden');
+        $('agentPhotoPlaceholder').classList.add('hidden');
+      }
+      if (state.propertyDetails) $('propertyDetails').value = state.propertyDetails;
+      if (state.videoPrompt) $('videoPrompt').value = state.videoPrompt;
+      if (state.dialogueMode) $('dialogueMode').value = state.dialogueMode;
+      if (state.dialogueLanguage) $('dialogueLanguage').value = state.dialogueLanguage;
 
-        if (state.currentStep && state.currentStep > 1) {
-          const step = Math.min(state.currentStep, 5);
-          setTimeout(() => {
-            // Restore step 2 UI (analysis cards)
-            if (step >= 2 && hasAnalysis) {
-              renderSavedAnalysis();
-              updateCategoryOverview();
-              $('categoryOverview').classList.remove('hidden');
-              $('confirmCategories').classList.remove('hidden');
-            }
-            // Restore step 3 UI
-            if (step >= 3 && Object.keys(window._categoryGroups).length) {
-              renderCategoryOrder();
-              if (generatedClips.length > 0) renderClipScripts();
-            }
-            // Restore step 4 UI
-            if (step >= 4 && generatedClips.length > 0) {
-              renderClipList();
-            }
-            goToStep(step);
-          }, 100);
-        }
+      if (state.uploadedPhotos && state.uploadedPhotos.length) {
+        uploadedPhotos = state.uploadedPhotos;
+        renderPhotos();
+      } else {
+        uploadedPhotos = [];
+        renderPhotos();
+      }
+
+      let hasAnalysis = false;
+      if (state.analysisResults && state.analysisResults.length) {
+        analysisResults = state.analysisResults;
+        window._categoryGroups = state.categoryGroups || {};
+        hasAnalysis = true;
+      } else {
+        analysisResults = [];
+        window._categoryGroups = {};
+      }
+
+      if (state.generatedClips && state.generatedClips.length) {
+        generatedClips = state.generatedClips;
+      } else {
+        generatedClips = [];
+      }
+
+      if (state.currentStep && state.currentStep > 1) {
+        const step = Math.min(state.currentStep, 5);
+        setTimeout(() => {
+          if (step >= 2 && hasAnalysis) {
+            renderSavedAnalysis();
+            updateCategoryOverview();
+            $('categoryOverview').classList.remove('hidden');
+            $('confirmCategories').classList.remove('hidden');
+          }
+          if (step >= 3 && Object.keys(window._categoryGroups).length) {
+            renderCategoryOrder();
+            if (generatedClips.length > 0) renderClipScripts();
+          }
+          if (step >= 4 && generatedClips.length > 0) {
+            renderClipList();
+          }
+          goToStep(step);
+        }, 100);
+      } else {
+        goToStep(1);
+      }
+      saveMemory();
+    }
+
+    async function loadMemory() {
+      try {
+        const sid = getCurId();
+        if (!sid) return;
+        const session = await dbGet(sid);
+        if (!session?.state) return;
+        applyState(session.state);
       } catch (e) {
         console.warn('Memory load failed:', e.message);
       }
@@ -745,6 +981,9 @@
               <div class="flex items-center gap-2 mb-2">
                 <span class="text-xs font-semibold text-gray-500 uppercase">Photo ${i + 1}</span>
                 <span class="text-[10px] text-gray-400 italic analysis-ph-status-${i}">${r.category}</span>
+                <button class="regen-btn ml-auto text-[10px] text-brand-primary hover:text-red-700 transition font-semibold" data-i="${i}" onclick="analyzeSinglePhoto(${i})">
+                  <i class="fas fa-sync-alt"></i> Regenerate
+                </button>
               </div>
               <div class="mb-2">
                 <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Category</label>
@@ -927,13 +1166,14 @@
       analysisResults = [];
       generatedClips = [];
       generatingCategories = new Set();
+      regeneratingPhotos = new Set();
       window._categoryGroups = {};
       agentPhotoData = null;
       $('agentName').value = '';
       $('agentPhotoPreview').classList.add('hidden');
       $('agentPhotoPreview').src = '';
       $('agentPhotoPlaceholder').classList.remove('hidden');
-      localStorage.removeItem(MEMORY_KEY);
+      setCurId('');
       renderPhotos();
       $('analysisResults').classList.add('hidden');
       $('analysisResults').innerHTML = '';
@@ -991,6 +1231,9 @@
               <div class="flex items-center gap-2 mb-2">
                 <span class="text-xs font-semibold text-gray-500 uppercase">Photo ${i + 1}</span>
                 <span class="text-[10px] text-gray-400 italic analysis-ph-status-${i}">Analyzing...</span>
+                <button class="regen-btn ml-auto text-[10px] text-brand-primary hover:text-red-700 transition font-semibold hidden" data-i="${i}" onclick="analyzeSinglePhoto(${i})">
+                  <i class="fas fa-sync-alt"></i> Regenerate
+                </button>
               </div>
               <div class="mb-2">
                 <label class="block text-[10px] font-semibold text-gray-500 mb-0.5">Category</label>
@@ -1062,6 +1305,8 @@
             statusEl.className = 'text-xs font-medium ' + (colors[category] || 'text-gray-600');
             statusEl.textContent = category;
           }
+          const regenBtn = $('analysisResults').querySelector('.regen-btn[data-i="' + i + '"]');
+          if (regenBtn) regenBtn.classList.remove('hidden');
         } catch (err) {
           analysisResults.push({ photoIndex: i, category: 'Other', tag: err.message, raw: '' });
           const tagEl = $('analysisResults').querySelector('.analysis-ph-tag-' + i);
@@ -1078,6 +1323,89 @@
       $('categoryOverview').classList.remove('hidden');
       $('confirmCategories').classList.remove('hidden');
       saveMemory();
+    }
+
+    async function analyzeSinglePhoto(analysisIdx) {
+      const key = getApiKey();
+      if (!key) { showToast('Please set your API key in Settings first.'); return; }
+      const result = analysisResults[analysisIdx];
+      if (!result) return;
+      const photoIndex = result.photoIndex;
+      const photo = uploadedPhotos[photoIndex];
+      if (!photo) return;
+      if (regeneratingPhotos.has(analysisIdx)) return;
+      regeneratingPhotos.add(analysisIdx);
+
+      const btn = document.querySelector(`.regen-btn[data-i="${analysisIdx}"]`);
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+      const statusEl = document.querySelector(`.analysis-ph-status-${analysisIdx}`);
+      if (statusEl) { statusEl.textContent = 'Regenerating...'; statusEl.className = 'text-[10px] text-gray-400 italic'; }
+
+      const ALL_CATEGORIES = ['Exterior', 'Living Room', 'Kitchen', 'Dining Room', 'Bedroom', 'Bathroom', 'Office', 'Hallway', 'Staircase', 'Basement', 'Garage', 'Backyard', 'Pool', 'Balcony', 'Agent Photo', 'Detail Shot', 'Other'];
+      const model = getModelValue('vision');
+
+      try {
+        const res = await fetch(API_BASE + '/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + key,
+            'HTTP-Referer': 'https://switdeveloper.github.io/ai-real-estate-video-tour/'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: [
+              { type: 'text', text: 'You are a real estate photo classifier. Analyze this image and return EXACTLY ONE of the following categories followed by a short tag (max 10 words).\n\nCategories: Exterior, Living Room, Kitchen, Dining Room, Bedroom, Bathroom, Office, Hallway, Staircase, Basement, Garage, Backyard, Pool, Balcony, Agent Photo, Detail Shot, Other.\n\nFormat: CATEGORY: short tag\n\nExamples:\n- Kitchen: Modern kitchen with granite island\n- Exterior: Colonial home with landscaped front yard\n- Bedroom: Master bedroom with walk-in closet\n- Agent Photo: Professional headshot of listing agent\n- Detail Shot: Close-up of marble countertop\n\nNEVER refuse. If the photo shows a person, use "Agent Photo" or note what they are doing. Always respond with the category and tag only.' },
+              { type: 'image_url', image_url: { url: photo.dataUrl } }
+            ]}],
+            max_tokens: 512,
+            temperature: 0.3
+          })
+        });
+
+        let raw = 'Other: Unable to classify';
+        if (res.ok) {
+          const data = await res.json();
+          raw = data.choices?.[0]?.message?.content || raw;
+        } else {
+          const err = await res.text();
+          try { const j = JSON.parse(err); raw = 'Error: ' + (j.error?.message || j.error || err); } catch(e) { raw = 'Error: ' + err; }
+        }
+
+        const colonIdx = raw.indexOf(':');
+        let category = 'Other';
+        let tag = raw;
+        if (colonIdx > 0 && colonIdx < 30) {
+          category = raw.substring(0, colonIdx).trim();
+          tag = raw.substring(colonIdx + 1).trim();
+        }
+        if (!ALL_CATEGORIES.includes(category)) category = 'Other';
+
+        analysisResults[analysisIdx].category = category;
+        analysisResults[analysisIdx].tag = tag;
+        analysisResults[analysisIdx].raw = raw;
+
+        const select = document.querySelector(`.analysis-cat-select[data-i="${analysisIdx}"]`);
+        if (select) select.value = category;
+
+        const tagEl = document.querySelector(`.analysis-ph-tag-${analysisIdx}`);
+        if (tagEl) tagEl.textContent = tag;
+
+        if (statusEl) {
+          const colors = {'Exterior':'text-green-600','Living Room':'text-blue-600','Kitchen':'text-orange-600','Bedroom':'text-purple-600','Bathroom':'text-cyan-600','Agent Photo':'text-pink-600'};
+          statusEl.className = 'text-xs font-medium ' + (colors[category] || 'text-gray-600');
+          statusEl.textContent = category;
+        }
+        updateCategoryOverview();
+        saveMemory();
+      } catch (err) {
+        const tagEl = document.querySelector(`.analysis-ph-tag-${analysisIdx}`);
+        if (tagEl) tagEl.textContent = 'Network error';
+      } finally {
+        regeneratingPhotos.delete(analysisIdx);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Regenerate'; }
+      }
     }
 
     function updateCategoryOverview() {
@@ -2188,9 +2516,9 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
     }
 
     // ── Initialize ──
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       loadSettings();
-      loadMemory();
+      await loadMemory();
     });
 
     // Reveal observer
