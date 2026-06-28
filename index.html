@@ -2517,20 +2517,61 @@ The ${cat.toLowerCase()} must remain exactly identical to the uploaded images, a
     function copyClipText(clipIndex) {
       const clip = generatedClips[clipIndex];
       if (!clip) return;
-      const parts = [];
-      if (clip.title) parts.push(`TITLE: ${clip.title}`);
-      if (clip.category) parts.push(`CATEGORY: ${clip.category}`);
-      if (clip.scenePurpose) parts.push(`\nSCENE PURPOSE:\n${clip.scenePurpose}`);
-      if (clip.dialogue) parts.push(`\nDIALOGUE:\n${clip.dialogue}`);
-      if (clip.cameraMovement) parts.push(`\nCAMERA MOVEMENT:\n${clip.cameraMovement}`);
-      if (clip.videoStyle) parts.push(`\nVIDEO STYLE:\n${clip.videoStyle}`);
-      if (clip.agentMovement) parts.push(`\nAGENT MOVEMENT:\n${clip.agentMovement}`);
-      if (clip.negativePrompt) parts.push(`\nNEGATIVE PROMPT:\n${clip.negativePrompt}`);
-      const text = parts.join('\n');
+      const cat = (clip.category || '').toLowerCase();
+      const lines = [];
+
+      // Header
+      lines.push(`SCENE ${clipIndex + 1} – ${clip.title || clip.category} (${clip.duration || 9} SECONDS)`);
+
+      // Identity rules
+      lines.push('Use ONLY the uploaded realtor image as the exact identity reference.');
+      lines.push(`Use ONLY the uploaded ${cat} images as the location reference.`);
+      lines.push('The realtor must remain identical to the uploaded image: Same face Same hairstyle Same clothing Same body proportions Same age Same professional appearance');
+
+      // Room description + ⸻ VIDEO FLOW
+      let roomDesc = '';
+      if (clip.fullText) {
+        const m = clip.fullText.match(/The room must remain exactly identical to the uploaded images:\s*([\s\S]*?)(?:⸻|$)/);
+        if (m) roomDesc = m[1].trim().replace(/\s*\n+\s*/g, ', ');
+      }
+      if (!roomDesc && clip.scenePurpose) {
+        roomDesc = clip.scenePurpose.replace(/^FINAL REQUIREMENT\s*/i, '').trim().substring(0, 200);
+      }
+      lines.push(`The room must remain exactly identical to the uploaded images: ${roomDesc || cat} ⸻ VIDEO FLOW`);
+
+      // Timed entries from timeline or fullText
+      let timeline = clip.timeline || '';
+      if ((!timeline || !/\d+[–-]\d+\s*Seconds/i.test(timeline)) && clip.fullText) {
+        const m = clip.fullText.match(/VIDEO\s+FLOW[\s\S]*?(?=⸻)/i);
+        if (m) timeline = m[0].replace(/^VIDEO\s+FLOW\s*/i, '').trim();
+      }
+      if (timeline) {
+        const blocks = timeline.split(/\n{2,}/);
+        for (const block of blocks) {
+          const t = block.trim();
+          if (!t) continue;
+          if (!/^\d+[–-]\d+\s*Seconds/i.test(t)) continue;
+          const parts = t.split('\n');
+          const timeLabel = parts[0] || '';
+          let cameraAction = '', dialogue = '';
+          for (const p of parts) {
+            if (/^\[/.test(p.trim())) cameraAction = p.trim().replace(/^\[/, '').replace(/\]$/, '');
+            if (/^Dialogue/i.test(p.trim())) {
+              dialogue = p.trim().replace(/^Dialogue[:\s]*"?/i, '').replace(/"$/, '').trim();
+            }
+          }
+          let line = timeLabel;
+          if (cameraAction) line += ` [${cameraAction}]`;
+          if (dialogue) line += ` Dialogue: "${dialogue}"`;
+          lines.push(line);
+        }
+      }
+
+      const text = lines.join('\n');
       navigator.clipboard.writeText(text).then(() => {
-        showToast(`Clip ${clipIndex + 1} script copied to clipboard`);
+        showToast(`Clip ${clipIndex + 1} copied`);
       }).catch(() => {
-        fallbackCopy(text, `Clip ${clipIndex + 1} script copied to clipboard`);
+        fallbackCopy(text, `Clip ${clipIndex + 1} copied`);
       });
     }
 
